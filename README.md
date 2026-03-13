@@ -34,9 +34,9 @@ Ask a question and press `Enter`.
 
 Press `Esc` to close it.
 
-If you want to switch back to the main editor without closing the overlay, press `Alt+/` again.
+**Toggle focus**: Press `Alt+/` again to switch back to the main editor without closing the overlay. The side chat stays visible but unfocused. Press `Alt+/` once more to refocus it.
 
-If you need write access, press `Ctrl+T` to switch from read-only mode to full mode.
+**Toggle mode**: Press `Ctrl+T` to switch from read-only mode to edit mode if you need write access.
 
 ## What it does
 
@@ -49,10 +49,10 @@ The overlay starts with a copy of the current branch context, so the side agent 
 The safe default is read-only. That makes it useful for quick questions, code reading, and checking progress without risking accidental edits.
 
 Press `Ctrl+T` to switch between:
-- read-only mode
-- full mode with write, edit, and bash access
+- **read-only mode** — safe for quick questions and code reading
+- **edit mode** — enables write, edit, and bash tools
 
-The footer always shows what `Ctrl+T` will do next.
+The header shows the current mode (`[Read-only]` or `[Edit]`), and the footer shows what `Ctrl+T` will do next.
 
 ### Warns on file overlap
 
@@ -91,10 +91,10 @@ It opens near the top of the screen so the main editor stays visible underneath.
 
 | Key | Action |
 |-----|--------|
-| `Alt+/` | Open side chat, or toggle focus between side chat and main |
+| `Alt+/` | Open side chat. When already open, toggles focus between side chat and main editor. |
 | `Enter` | Send message |
 | `Esc` | Close side chat |
-| `Ctrl+T` | Toggle read-only / full mode |
+| `Ctrl+T` | Toggle between read-only mode and edit mode (enables write/edit/bash) |
 | `PgUp` / `Shift+↑` | Scroll up |
 | `PgDn` / `Shift+↓` | Scroll down |
 
@@ -129,7 +129,7 @@ Create `/Users/nicobailon/.pi/agent/extensions/pi-side-chat/config.json` if you 
 
 When you open side chat, the extension clones the current session context, creates a separate agent instance, and renders it in a TUI overlay. The main agent keeps running on its own branch.
 
-The extension also listens for main-agent tool execution events and keeps a small in-memory set of paths that have been written. When side chat is in full mode, its write-capable tools are wrapped so they can warn before touching one of those paths.
+The extension also listens for main-agent tool execution events and keeps a small in-memory set of paths that have been written. When side chat is in edit mode, its write-capable tools are wrapped so they can warn before touching one of those paths.
 
 `peek_main` reads the current session branch on demand, formats the recent messages, and returns a compact summary back to the side agent.
 

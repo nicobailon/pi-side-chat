@@ -146,32 +146,27 @@ export class SideChatOverlay implements Component, Focusable {
     const trimmed = text.trim();
     if (!trimmed || this.isStreaming || this.disposed) return;
 
-    let hadError = false;
-
     this.editor.setText("");
     this.isStreaming = true;
     this.streamingContent = "";
     this.messages.setStreamingContent("");
+    this.messages.setErrorContent("");
     this.messages.setToolStatus("");
     this.options.tui.requestRender();
 
     try {
       await this.agent.prompt(trimmed);
     } catch (e) {
-      hadError = true;
       this.streamingContent = "";
       if (!this.disposed) {
-        this.messages.setStreamingContent(`[Error: ${e instanceof Error ? e.message : "Unknown error"}]`);
-        this.messages.setToolStatus("");
+        this.messages.setErrorContent(e instanceof Error ? e.message : "Unknown error");
       }
     } finally {
       this.isStreaming = false;
       this.streamingContent = "";
+      this.messages.setStreamingContent("");
       this.messages.setToolStatus("");
       this.messages.setMessages([...this.agent.state.messages]);
-      if (!hadError) {
-        this.messages.setStreamingContent("");
-      }
       if (!this.disposed) this.options.tui.requestRender();
     }
   }
@@ -209,8 +204,9 @@ export class SideChatOverlay implements Component, Focusable {
     const title = "Side Chat";
     const focusHint = this._focused ? "" : " (unfocused)";
     const mainLabel = tracker.writeCount ? `${tracker.writeCount} file${tracker.writeCount > 1 ? "s" : ""}` : "idle";
-    const modeLabel = this.toolMode === "full" ? "Full" : "Read";
-    const status = theme.fg("dim", `[Main: ${mainLabel}] [${modeLabel}]`);
+    const modeLabel = this.toolMode === "full" ? "Edit" : "Read-only";
+    const modeColor = this.toolMode === "full" ? "warning" : "dim";
+    const status = theme.fg("dim", `[Main: ${mainLabel}] `) + theme.fg(modeColor, `[${modeLabel}]`);
     const stream = this.isStreaming ? theme.fg("warning", " ●") : "";
     const left = theme.fg(this._focused ? "accent" : "dim", title) + theme.fg("dim", focusHint) + stream;
     const leftWidth = Math.max(1, innerWidth - visibleWidth(status) - 1);
@@ -233,10 +229,10 @@ export class SideChatOverlay implements Component, Focusable {
     }
 
     const shortcutLabel = this.options.shortcut.replace(/ctrl/i, "Ctrl").replace(/shift/i, "Shift").replace(/alt/i, "Alt");
-    const modeHint = this.toolMode === "read-only" ? "Ctrl+T edit" : "Ctrl+T read-only";
+    const modeHint = this.toolMode === "read-only" ? "Ctrl+T → edit mode" : "Ctrl+T → read-only";
     const hints = this._focused
-      ? `Esc close · Enter send · Shift+↑/↓ scroll · ${shortcutLabel} main · ${modeHint}`
-      : `${shortcutLabel} to focus`;
+      ? `Esc close · Enter send · Shift+↑/↓ scroll · ${shortcutLabel} → unfocus · ${modeHint}`
+      : `${shortcutLabel} → focus side chat`;
     lines.push(theme.fg(borderColor, "├" + "─".repeat(width - 2) + "┤"));
     lines.push(this.frameLine(theme.fg("dim", hints), innerWidth, theme, borderColor));
     lines.push(theme.fg(borderColor, "└" + "─".repeat(width - 2) + "┘"));
@@ -249,7 +245,7 @@ export class SideChatOverlay implements Component, Focusable {
   }
 
   handleInput(data: string): void {
-    if (matchesKey(data, Key.escape)) { this.close(); return; }
+    if (matchesKey(data, Key.escape)) { this.dispose(); return; }
     if (matchesKey(data, Key.ctrl("t"))) {
       this.toolMode = this.toolMode === "full" ? "read-only" : "full";
       const { forkContext, tracker, onOverlapWarning } = this.options;
@@ -265,17 +261,11 @@ export class SideChatOverlay implements Component, Focusable {
     this.options.tui.requestRender();
   }
 
-  private close() {
-    if (this.disposed) return;
-    this.disposed = true;
-    this.agent.abort();
-    this.options.onClose();
-  }
-
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
     this.agent.abort();
+    this.options.onClose();
   }
 
   invalidate() {

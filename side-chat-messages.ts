@@ -5,6 +5,7 @@ import type { Theme } from "@mariozechner/pi-coding-agent";
 export class SideChatMessages implements Component {
   private messages: AgentMessage[] = [];
   private streamingContent = "";
+  private errorContent = "";
   private toolStatus = "";
   private scrollOffset = 0;
   private totalLines = 0;
@@ -18,6 +19,12 @@ export class SideChatMessages implements Component {
 
   setStreamingContent(content: string) {
     this.streamingContent = content;
+    if (content) this.errorContent = "";
+  }
+
+  setErrorContent(content: string) {
+    this.errorContent = content;
+    if (content) this.streamingContent = "";
   }
 
   setToolStatus(status: string) {
@@ -39,7 +46,9 @@ export class SideChatMessages implements Component {
       }
     }
 
-    if (this.streamingContent) {
+    if (this.errorContent) {
+      lines.push(...wrapTextWithAnsi(this.theme.fg("error", "[Error]: ") + this.errorContent, width));
+    } else if (this.streamingContent) {
       lines.push(...wrapTextWithAnsi(this.theme.fg("text", "[Assistant]: ") + this.streamingContent + "▌", width));
     }
 

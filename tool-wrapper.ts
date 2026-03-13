@@ -168,7 +168,6 @@ function collectSegmentWritePaths(segment: ShellToken[], paths: string[]): void 
   if (commandIndex === -1) return;
 
   const command = segment[commandIndex];
-  if (command.type !== "word") return;
 
   const operands = collectCommandOperands(segment.slice(commandIndex + 1));
   if (command.value === "tee" || command.value === "touch" || command.value === "rm") {
