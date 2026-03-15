@@ -22,6 +22,7 @@ export interface ForkContext {
   systemPrompt: string;
   thinkingLevel: ThinkingLevel;
   cwd: string;
+  extensionTools: AgentTool[];
 }
 
 interface SideChatOverlayOptions {
@@ -33,7 +34,8 @@ interface SideChatOverlayOptions {
   sessionManager: SessionManager;
   shortcut: string;
   onOverlapWarning: (path: string) => Promise<boolean>;
-  onClose: () => void;
+  onUnfocus: () => void;
+  onClose: (action: "close" | "refork" | "clear", messages: AgentMessage[]) => void;
 }
 
 const SIDE_CHAT_PROMPT = `
@@ -47,6 +49,8 @@ Use \`peek_main({ since_fork: true })\` for activity since side chat opened.
 
 Be concise - this is for quick questions. If user wants something main is doing, suggest waiting.`;
 
+const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
 export class SideChatOverlay implements Component, Focusable {
   private agent: Agent;
   private messages: SideChatMessages;
@@ -58,6 +62,8 @@ export class SideChatOverlay implements Component, Focusable {
   private disposed = false;
   private forkLeafId: string | null;
   private peekMainTool: AgentTool;
+  private spinnerInterval: NodeJS.Timeout | null = null;
+  private spinnerFrame = 0;
 
   get focused() { return this._focused; }
   set focused(v: boolean) { this._focused = v; this.editor.focused = v; }
@@ -75,7 +81,7 @@ export class SideChatOverlay implements Component, Focusable {
         systemPrompt: forkContext.systemPrompt + SIDE_CHAT_PROMPT,
         model: forkContext.model,
         thinkingLevel: forkContext.thinkingLevel,
-        tools: [...initialTools, this.peekMainTool],
+        tools: [...initialTools, ...forkContext.extensionTools, this.peekMainTool],
         messages: forkedMessages,
       },
       convertToLlm,
@@ -96,6 +102,7 @@ export class SideChatOverlay implements Component, Focusable {
   private createPeekMainTool(sessionManager: SessionManager): AgentTool {
     return {
       name: "peek_main",
+      label: "peek_main",
       description: "View main agent's recent activity. Use when user asks about main's progress or status.",
       parameters: Type.Object({
         lines: Type.Optional(Type.Integer({ description: "Max items (default: 20)", minimum: 1, maximum: 50 })),
@@ -142,6 +149,25 @@ export class SideChatOverlay implements Component, Focusable {
     return "";
   }
 
+  private startSpinner() {
+    this.stopSpinner();
+    this.spinnerFrame = 0;
+    this.messages.setToolStatus(`${SPINNER[0]} Working...`);
+    this.options.tui.requestRender();
+    this.spinnerInterval = setInterval(() => {
+      this.spinnerFrame = (this.spinnerFrame + 1) % SPINNER.length;
+      this.messages.setToolStatus(`${SPINNER[this.spinnerFrame]} Working...`);
+      this.options.tui.requestRender();
+    }, 80);
+  }
+
+  private stopSpinner() {
+    if (!this.spinnerInterval) return;
+    clearInterval(this.spinnerInterval);
+    this.spinnerInterval = null;
+    this.messages.setToolStatus("");
+  }
+
   private async handleSubmit(text: string) {
     const trimmed = text.trim();
     if (!trimmed || this.isStreaming || this.disposed) return;
@@ -151,8 +177,7 @@ export class SideChatOverlay implements Component, Focusable {
     this.streamingContent = "";
     this.messages.setStreamingContent("");
     this.messages.setErrorContent("");
-    this.messages.setToolStatus("");
-    this.options.tui.requestRender();
+    this.startSpinner();
 
     try {
       await this.agent.prompt(trimmed);
@@ -164,6 +189,7 @@ export class SideChatOverlay implements Component, Focusable {
     } finally {
       this.isStreaming = false;
       this.streamingContent = "";
+      this.stopSpinner();
       this.messages.setStreamingContent("");
       this.messages.setToolStatus("");
       this.messages.setMessages([...this.agent.state.messages]);
@@ -175,17 +201,18 @@ export class SideChatOverlay implements Component, Focusable {
     if (this.disposed) return;
 
     if (event.type === "message_update" && event.assistantMessageEvent?.type === "text_delta") {
+      this.stopSpinner();
       this.streamingContent += event.assistantMessageEvent.delta;
       this.messages.setStreamingContent(this.streamingContent);
     } else if (event.type === "message_end") {
       this.messages.setMessages([...this.agent.state.messages]);
       this.messages.setStreamingContent("");
-      this.messages.setToolStatus("");
       this.streamingContent = "";
     } else if (event.type === "tool_execution_start") {
+      this.stopSpinner();
       this.messages.setToolStatus(`Running ${event.toolName}...`);
     } else if (event.type === "tool_execution_end") {
-      this.messages.setToolStatus("");
+      this.startSpinner();
     }
 
     this.options.tui.requestRender();
@@ -217,7 +244,7 @@ export class SideChatOverlay implements Component, Focusable {
     lines.push(this.frameLine(`${headerLeft}${headerGap}${status}`, innerWidth, theme, borderColor));
     lines.push(theme.fg(borderColor, "├" + "─".repeat(width - 2) + "┤"));
 
-    const maxLines = Math.max(3, Math.floor(this.options.tui.terminal.rows * 0.35) - 8);
+    const maxLines = Math.max(3, Math.floor(this.options.tui.terminal.rows * 0.35) - 10);
     this.messages.setMaxVisibleLines(maxLines);
     const msgLines = this.messages.render(innerWidth);
     for (const line of msgLines) lines.push(this.frameLine(line, innerWidth, theme, borderColor));
@@ -229,15 +256,16 @@ export class SideChatOverlay implements Component, Focusable {
     }
 
     const shortcutLabel = this.options.shortcut.replace(/ctrl/i, "Ctrl").replace(/shift/i, "Shift").replace(/alt/i, "Alt");
+    const escHint = this.isStreaming ? "Esc stop" : "Esc close";
     const modeHint = this.toolMode === "read-only" ? "Ctrl+T → edit mode" : "Ctrl+T → read-only";
     const hints = this._focused
-      ? `Esc close · Enter send · Shift+↑/↓ scroll · ${shortcutLabel} → unfocus · ${modeHint}`
+      ? `${escHint} · Enter send · Alt+R refork · Alt+N clear · ${shortcutLabel} → unfocus · ${modeHint}`
       : `${shortcutLabel} → focus side chat`;
     lines.push(theme.fg(borderColor, "├" + "─".repeat(width - 2) + "┤"));
     lines.push(this.frameLine(theme.fg("dim", hints), innerWidth, theme, borderColor));
     lines.push(theme.fg(borderColor, "└" + "─".repeat(width - 2) + "┘"));
 
-    return lines;
+    return lines.map((l) => visibleWidth(l) > width ? truncateToWidth(l, width) : l);
   }
 
   private frameLine(line: string, width: number, theme: Theme, borderColor: string): string {
@@ -245,14 +273,24 @@ export class SideChatOverlay implements Component, Focusable {
   }
 
   handleInput(data: string): void {
-    if (matchesKey(data, Key.escape)) { this.dispose(); return; }
+    if (matchesKey(data, Key.escape)) {
+      if (this.isStreaming) {
+        this.agent.abort();
+      } else {
+        this.dispose();
+      }
+      return;
+    }
+    if (matchesKey(data, this.options.shortcut)) { this.options.onUnfocus(); return; }
+    if (matchesKey(data, Key.alt("r"))) { this.dispose("refork"); return; }
+    if (matchesKey(data, Key.alt("n"))) { this.dispose("clear"); return; }
     if (matchesKey(data, Key.ctrl("t"))) {
       this.toolMode = this.toolMode === "full" ? "read-only" : "full";
       const { forkContext, tracker, onOverlapWarning } = this.options;
-      const tools = this.toolMode === "read-only"
+      const builtinTools = this.toolMode === "read-only"
         ? createReadOnlyTools(forkContext.cwd)
         : wrapToolsWithOverlapDetection(createCodingTools(forkContext.cwd), tracker, forkContext.cwd, onOverlapWarning);
-      this.agent.setTools([...tools, this.peekMainTool]);
+      this.agent.setTools([...builtinTools, ...forkContext.extensionTools, this.peekMainTool]);
       this.options.tui.requestRender();
       return;
     }
@@ -261,11 +299,13 @@ export class SideChatOverlay implements Component, Focusable {
     this.options.tui.requestRender();
   }
 
-  dispose() {
+  dispose(action: "close" | "refork" | "clear" = "close") {
     if (this.disposed) return;
     this.disposed = true;
+    this.stopSpinner();
+    const messages = [...this.agent.state.messages];
     this.agent.abort();
-    this.options.onClose();
+    this.options.onClose(action, messages);
   }
 
   invalidate() {

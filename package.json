@@ -1,6 +1,6 @@
 {
   "name": "pi-side-chat",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pi extension that forks the current conversation into a temporary side chat",
   "type": "module",
   "main": "index.js",

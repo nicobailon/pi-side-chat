@@ -1,12 +1,36 @@
+import type { AgentMessage, AgentTool } from "@mariozechner/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext, ExtensionUIContext } from "@mariozechner/pi-coding-agent";
 import type { OverlayHandle } from "@mariozechner/pi-tui";
-import { buildSessionContext } from "@mariozechner/pi-coding-agent";
+import { buildSessionContext, ExtensionRunner } from "@mariozechner/pi-coding-agent";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FileActivityTracker } from "./file-activity-tracker.js";
 import { SideChatOverlay, type ForkContext } from "./side-chat-overlay.js";
 import { extractWritePaths } from "./tool-wrapper.js";
+
+// Patch to capture the runner instance for extension tool access in side chat.
+let capturedRunner: ExtensionRunner | null = null;
+const origGetAllRegisteredTools = ExtensionRunner.prototype.getAllRegisteredTools;
+ExtensionRunner.prototype.getAllRegisteredTools = function () {
+  capturedRunner = this;
+  return origGetAllRegisteredTools.call(this);
+};
+
+function getExtensionAgentTools(): AgentTool[] {
+  if (!capturedRunner) return [];
+  return capturedRunner.getAllRegisteredTools().map((rt): AgentTool => {
+    const { definition } = rt;
+    return {
+      name: definition.name,
+      label: definition.label,
+      description: definition.description,
+      parameters: definition.parameters,
+      execute: (toolCallId, params, signal, onUpdate) =>
+        definition.execute(toolCallId, params, signal, onUpdate, capturedRunner!.createContext()),
+    };
+  });
+}
 
 const DEFAULT_SHORTCUT = "alt+/";
 const OVERLAY_BLOCKED_ERROR = "PI_SIDE_CHAT_OVERLAY_BLOCKED";
@@ -27,6 +51,7 @@ export default function sideChatExtension(pi: ExtensionAPI) {
   const tracker = new FileActivityTracker();
   let activeOverlay: SideChatOverlay | null = null;
   let overlayHandle: OverlayHandle | null = null;
+  let lastMessages: AgentMessage[] | null = null;
 
   pi.on("tool_execution_start", (event, ctx) => {
     if (["write", "edit", "bash"].includes(event.toolName)) {
@@ -44,7 +69,10 @@ export default function sideChatExtension(pi: ExtensionAPI) {
       }
       return;
     }
+    return openSideChat(ctx);
+  };
 
+  const openSideChat = async (ctx: ExtensionContext, clear = false) => {
     if (!ctx.model) {
       ctx.ui.notify("Cannot open side chat: no model configured", "error");
       return;
@@ -52,15 +80,16 @@ export default function sideChatExtension(pi: ExtensionAPI) {
 
     const sessionContext = buildSessionContext(ctx.sessionManager.getEntries(), ctx.sessionManager.getLeafId());
     const forkContext: ForkContext = {
-      messages: sessionContext.messages,
+      messages: clear ? [] : (lastMessages ?? sessionContext.messages),
       model: ctx.model,
       systemPrompt: ctx.getSystemPrompt(),
       thinkingLevel: pi.getThinkingLevel(),
       cwd: ctx.cwd,
+      extensionTools: getExtensionAgentTools(),
     };
 
     try {
-      await ctx.ui.custom(
+      const action = await ctx.ui.custom<"close" | "refork" | "clear">(
         (tui, theme, _keybindings, done) => {
           if (tui.hasOverlay()) {
             setTimeout(() => {
@@ -78,10 +107,12 @@ export default function sideChatExtension(pi: ExtensionAPI) {
             sessionManager: ctx.sessionManager,
             shortcut: config.shortcut,
             onOverlapWarning: (path) => showOverlapWarning(ctx.ui, path),
-            onClose: () => {
+            onUnfocus: () => overlayHandle?.unfocus(),
+            onClose: (action, messages) => {
+              lastMessages = action === "close" ? messages : null;
               activeOverlay = null;
               overlayHandle = null;
-              done(undefined);
+              done(action);
             },
           });
           return activeOverlay;
@@ -101,6 +132,8 @@ export default function sideChatExtension(pi: ExtensionAPI) {
           },
         },
       );
+      if (action === "refork") return openSideChat(ctx);
+      if (action === "clear") return openSideChat(ctx, true);
     } catch (error) {
       if (error instanceof Error && error.message === OVERLAY_BLOCKED_ERROR) {
         return;

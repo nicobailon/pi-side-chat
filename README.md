@@ -18,7 +18,7 @@ This exists for the annoying in-between moments. You're in the middle of a longe
 
 Without a side chat, you either interrupt the main agent, open a completely separate Pi session with no context, or context-switch out to the browser. None of those feel great.
 
-`pi-side-chat` gives you a fork of the current conversation in an overlay. It starts with the same context, stays separate from the main thread, and disappears when you're done.
+`pi-side-chat` gives you a fork of the current conversation in an overlay. It starts with the same context, stays separate from the main thread, and persists across close/reopen cycles until you explicitly clear it.
 
 ## Install
 
@@ -34,11 +34,13 @@ Open side chat with `Alt+/` or `/side`.
 
 Ask a question and press `Enter`.
 
-Press `Esc` to close it.
+Press `Esc` to close it. Reopen with `Alt+/` to continue where you left off.
 
 **Toggle focus**: Press `Alt+/` again to switch back to the main editor without closing the overlay. The side chat stays visible but unfocused. Press `Alt+/` once more to refocus it.
 
 **Toggle mode**: Press `Ctrl+T` to switch from read-only mode to edit mode if you need write access.
+
+**Start fresh**: Press `Alt+R` to re-fork from the latest main context, or `Alt+N` for a blank conversation.
 
 ## What it does
 
@@ -95,7 +97,9 @@ It opens near the top of the screen so the main editor stays visible underneath.
 |-----|--------|
 | `Alt+/` | Open side chat. When already open, toggles focus between side chat and main editor. |
 | `Enter` | Send message |
-| `Esc` | Close side chat |
+| `Esc` | Interrupt streaming, or close side chat when idle |
+| `Alt+R` | Close and reopen with fresh context from main |
+| `Alt+N` | Close and reopen with empty conversation |
 | `Ctrl+T` | Toggle between read-only mode and edit mode (enables write/edit/bash) |
 | `PgUp` / `Shift+↑` | Scroll up |
 | `PgDn` / `Shift+↓` | Scroll down |
@@ -152,7 +156,7 @@ pi-side-chat/
 
 - Only one side chat can be open at a time.
 - Side chat will not open on top of another visible overlay.
-- The conversation is ephemeral. Closing the overlay discards it.
+- Closing preserves the conversation; reopening restores it. Use Alt+R or Alt+N to start fresh.
 - Side chat does not merge messages back into the main thread.
 - Bash overlap detection is heuristic. It catches common write cases, not every possible shell write.
 - `peek_main` is on-demand, not a live streaming view.
