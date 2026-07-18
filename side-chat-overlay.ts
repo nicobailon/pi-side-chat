@@ -272,6 +272,15 @@ export class SideChatOverlay implements Component, Focusable {
     return theme.fg(borderColor, "│ ") + truncateToWidth(line, width, "...", true) + theme.fg(borderColor, " │");
   }
 
+  private replaceAgentTools(tools: AgentTool[]): void {
+    const legacyAgent = this.agent as Agent & { setTools?: (tools: AgentTool[]) => void };
+    if (typeof legacyAgent.setTools === "function") {
+      legacyAgent.setTools(tools);
+      return;
+    }
+    this.agent.state.tools = tools;
+  }
+
   handleInput(data: string): void {
     if (matchesKey(data, Key.escape)) {
       if (this.isStreaming) {
@@ -285,12 +294,14 @@ export class SideChatOverlay implements Component, Focusable {
     if (matchesKey(data, Key.alt("r"))) { this.dispose("refork"); return; }
     if (matchesKey(data, Key.alt("n"))) { this.dispose("clear"); return; }
     if (matchesKey(data, Key.ctrl("t"))) {
-      this.toolMode = this.toolMode === "full" ? "read-only" : "full";
+      const nextMode = this.toolMode === "full" ? "read-only" : "full";
       const { forkContext, tracker, onOverlapWarning } = this.options;
-      const builtinTools = this.toolMode === "read-only"
+      const builtinTools = nextMode === "read-only"
         ? createReadOnlyTools(forkContext.cwd)
         : wrapToolsWithOverlapDetection(createCodingTools(forkContext.cwd), tracker, forkContext.cwd, onOverlapWarning);
-      this.agent.setTools([...builtinTools, ...forkContext.extensionTools, this.peekMainTool]);
+
+      this.replaceAgentTools([...builtinTools, ...forkContext.extensionTools, this.peekMainTool]);
+      this.toolMode = nextMode;
       this.options.tui.requestRender();
       return;
     }
