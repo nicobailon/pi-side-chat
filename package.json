@@ -1,10 +1,11 @@
 {
   "name": "pi-side-chat",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Pi extension that forks the current conversation into a side chat",
   "type": "module",
   "files": [
     "*.ts",
+    "prompts/",
     "README.md",
     "CHANGELOG.md",
     "banner.png"
@@ -17,6 +18,12 @@
     "coding-agent"
   ],
   "author": "Nico Bailon",
+  "contributors": [
+    {
+      "name": "yceachan",
+      "email": "yceachan@foxmail.com"
+    }
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -28,11 +35,27 @@
     ],
     "video": "https://github.com/nicobailon/pi-side-chat/raw/refs/heads/main/side-chat.mp4"
   },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-agent-core": "*",
-    "@mariozechner/pi-ai": "*",
-    "@mariozechner/pi-tui": "*",
+    "@earendil-works/pi-coding-agent": "latest",
+    "@earendil-works/pi-agent-core": "latest",
+    "@earendil-works/pi-ai": "latest",
+    "@earendil-works/pi-tui": "latest",
     "@sinclair/typebox": "*"
-  }
+  },
+  "devDependencies": {
+    "@earendil-works/pi-agent-core": "latest",
+    "@earendil-works/pi-ai": "latest",
+    "@earendil-works/pi-coding-agent": "latest",
+    "@earendil-works/pi-tui": "latest",
+    "typebox": "1.1.38",
+    "typescript": "6.0.3"
+  },
+  "trustedDependencies": [
+    "@google/genai",
+    "koffi",
+    "protobufjs"
+  ]
 }

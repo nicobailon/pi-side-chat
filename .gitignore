@@ -1,3 +1,23 @@
+# pi local state
 .pi/
+.pi-lens.json
+.agents/
+.pi-subagents/
+
+# Local extension config (shortcut overrides, machine-specific)
 config.json
+
+# Local planning notes
 pi-side-chat-plan.md
+
+# Dependencies
+node_modules/
+
+# Logs & debug artifacts
+*.log
+npm-debug.log*
+
+
+# OS cruft
+.DS_Store
+Thumbs.db

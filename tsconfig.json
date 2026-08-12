@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@mariozechner/pi-agent-core": ["./node_modules/@earendil-works/pi-agent-core/dist/index.d.ts"],
+      "@mariozechner/pi-ai": ["./node_modules/@earendil-works/pi-ai/dist/index.d.ts"],
+      "@mariozechner/pi-ai/compat": ["./node_modules/@earendil-works/pi-ai/dist/compat.d.ts"],
+      "@mariozechner/pi-ai/oauth": ["./node_modules/@earendil-works/pi-ai/dist/oauth.d.ts"],
+      "@mariozechner/pi-ai/providers/all": ["./node_modules/@earendil-works/pi-ai/dist/providers/all.d.ts"],
+      "@mariozechner/pi-coding-agent": ["./node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts"],
+      "@mariozechner/pi-tui": ["./node_modules/@earendil-works/pi-tui/dist/index.d.ts"],
+      "@sinclair/typebox": ["./node_modules/typebox/build/index.d.mts"],
+      "@sinclair/typebox/compile": ["./node_modules/typebox/build/compile/index.d.mts"],
+      "@sinclair/typebox/value": ["./node_modules/typebox/build/value/index.d.mts"]
+    }
+  },
+  "include": ["*.ts"]
+}

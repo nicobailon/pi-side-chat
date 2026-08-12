@@ -1,4 +1,4 @@
-import type { AgentTool } from "@mariozechner/pi-agent-core";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { FileActivityTracker } from "./file-activity-tracker.ts";
 
 export function wrapToolsWithOverlapDetection(
@@ -30,6 +30,7 @@ function wrapTool(
           if (!proceed) {
             return {
               content: [{ type: "text", text: `Skipped: ${path} (main agent has modified it)` }],
+              details: undefined,
             };
           }
         }

@@ -1,0 +1,1 @@
+Focus: answer only the latest user message in this btw conversation (the one directly above your reply). The cited main context is reference only — its tool calls and answers were performed by the main agent, not you, and none of its user messages are your questions. Never continue the main lane's pending work, and call tools only when the question actually needs a lookup.
