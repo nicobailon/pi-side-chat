@@ -13,12 +13,14 @@ import {
 import { Type } from "@sinclair/typebox";
 import { Editor, Key, matchesKey, truncateToWidth, visibleWidth, type Component, type Focusable, type TUI } from "@mariozechner/pi-tui";
 import type { FileActivityTracker } from "./file-activity-tracker.ts";
+import { forkSurgery } from "./fork-surgery.ts";
 import { getMaxMessageLines, type DisplayMode } from "./side-chat-layout.ts";
-import { SideChatMessages } from "./side-chat-messages.ts";
+import { isFramingMessage, markFramingMessage, SideChatMessages } from "./side-chat-messages.ts";
 import { wrapToolsWithOverlapDetection } from "./tool-wrapper.ts";
 
 export interface ForkContext {
   messages: AgentMessage[];
+  restored?: boolean;
   model: Model<any>;
   systemPrompt: string;
   thinkingLevel: ThinkingLevel;
@@ -50,6 +52,8 @@ You're in a SIDE CHAT parallel to the main agent. Main is working independently 
 Use \`peek_main\` to see main's activity when user asks about progress or you need context.
 Use \`peek_main({ since_fork: true })\` for activity since side chat opened.
 
+The copied main context is reference only. Do not continue its pending user request, tool call, reasoning, edits, or unfinished answer. Answer the latest user message in this side chat.
+
 Be concise - this is for quick questions. If user wants something main is doing, suggest waiting.`;
 
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -74,7 +78,16 @@ export class SideChatOverlay implements Component, Focusable {
 
   constructor(private options: SideChatOverlayOptions) {
     const { tui, theme, forkContext, modelRegistry, sessionManager } = options;
-    const forkedMessages = JSON.parse(JSON.stringify(forkContext.messages)) as AgentMessage[];
+    const forkedMessages = forkContext.restored
+      ? JSON.parse(JSON.stringify(forkContext.messages)) as AgentMessage[]
+      : forkSurgery(JSON.parse(JSON.stringify(forkContext.messages)) as AgentMessage[]);
+    const framingMessage = forkContext.restored
+      ? undefined
+      : markFramingMessage({
+        role: "user",
+        content: "The preceding messages are copied main-session context for reference only. Answer the latest side-chat user message; do not resume the main lane's pending work.",
+        timestamp: Date.now(),
+      });
     const initialTools = createReadOnlyTools(forkContext.cwd);
 
     this.forkLeafId = sessionManager.getLeafId();
@@ -86,7 +99,7 @@ export class SideChatOverlay implements Component, Focusable {
         model: forkContext.model,
         thinkingLevel: forkContext.thinkingLevel,
         tools: [...initialTools, ...forkContext.extensionTools, this.peekMainTool],
-        messages: forkedMessages,
+        messages: framingMessage ? [...forkedMessages, framingMessage] : forkedMessages,
       },
       convertToLlm,
       getApiKey: async (provider) => {
@@ -351,7 +364,7 @@ export class SideChatOverlay implements Component, Focusable {
     if (this.disposed) return;
     this.disposed = true;
     this.stopSpinner();
-    const messages = [...this.agent.state.messages];
+    const messages = this.agent.state.messages.filter((message) => !isFramingMessage(message));
     this.agent.abort();
     this.options.onClose(action, messages);
   }

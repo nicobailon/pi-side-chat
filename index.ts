@@ -92,6 +92,7 @@ export default function sideChatExtension(pi: ExtensionAPI) {
     const sessionContext = buildSessionContext(ctx.sessionManager.getEntries(), ctx.sessionManager.getLeafId());
     const forkContext: ForkContext = {
       messages: clear ? [] : (lastMessages ?? sessionContext.messages),
+      restored: !clear && lastMessages !== null,
       model: ctx.model,
       systemPrompt: ctx.getSystemPrompt(),
       thinkingLevel: pi.getThinkingLevel(),
