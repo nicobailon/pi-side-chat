@@ -22,6 +22,9 @@
     "type": "git",
     "url": "git+https://github.com/nicobailon/pi-side-chat.git"
   },
+  "scripts": {
+    "test": "tsx --test test/*.test.ts"
+  },
   "pi": {
     "extensions": [
       "./index.ts"
@@ -34,5 +37,13 @@
     "@mariozechner/pi-ai": "*",
     "@mariozechner/pi-tui": "*",
     "@sinclair/typebox": "*"
+  },
+  "devDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-agent-core": "*",
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-tui": "*",
+    "@sinclair/typebox": "*",
+    "tsx": "*"
   }
 }
