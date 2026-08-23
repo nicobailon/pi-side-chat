@@ -2,6 +2,17 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { Key, matchesKey, wrapTextWithAnsi, type Component } from "@mariozechner/pi-tui";
 import type { Theme } from "@mariozechner/pi-coding-agent";
 
+const FRAMING_MESSAGE = Symbol("side-chat-framing");
+
+export function markFramingMessage(message: AgentMessage): AgentMessage {
+  Object.defineProperty(message, FRAMING_MESSAGE, { value: true });
+  return message;
+}
+
+export function isFramingMessage(message: AgentMessage): boolean {
+  return (message as AgentMessage & { [FRAMING_MESSAGE]?: boolean })[FRAMING_MESSAGE] === true;
+}
+
 export class SideChatMessages implements Component {
   private messages: AgentMessage[] = [];
   private streamingContent = "";
@@ -40,6 +51,7 @@ export class SideChatMessages implements Component {
     const lines: string[] = [];
 
     for (const msg of this.messages) {
+      if (isFramingMessage(msg)) continue;
       const messageLines = this.renderMessage(msg, width);
       if (messageLines.length) {
         lines.push(...messageLines, "");

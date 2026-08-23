@@ -4,6 +4,7 @@
 
 - Fixed Ctrl+T edit-mode toggling on current pi versions. Thanks to [@johnrichardrinehart](https://github.com/johnrichardrinehart) for PR #2.
 - Added configurable fullscreen toggling for the side-chat overlay. Thanks to [@johnrichardrinehart](https://github.com/johnrichardrinehart) for PR #3.
+- Fixed side-chat forks opened during main-agent tool calls by treating copied context as reference-only and sanitizing unfinished tool exchanges. Thanks to [@yceachan](https://github.com/yceachan) for issue #5 and the PR #8 design.
 
 ## [0.1.4] - 2026-04-15
 
