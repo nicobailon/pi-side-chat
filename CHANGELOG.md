@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Fixed Ctrl+T edit-mode toggling on current pi versions. Thanks to [@johnrichardrinehart](https://github.com/johnrichardrinehart) for PR #2.
+- Added configurable fullscreen toggling for the side-chat overlay. Thanks to [@johnrichardrinehart](https://github.com/johnrichardrinehart) for PR #3.
 
 ## [0.1.4] - 2026-04-15
 

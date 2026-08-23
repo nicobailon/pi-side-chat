@@ -27,6 +27,8 @@ Press `Esc` to close it. Reopen with `Alt+/` to continue where you left off.
 
 **Toggle mode** — `Ctrl+T` switches between read-only and edit mode.
 
+**Toggle fullscreen** — `Alt+Shift+F` expands the open side chat to the terminal bounds. Press it again to restore the compact overlay. The conversation, draft, focus, and scroll position remain in place.
+
 **Start fresh** — `Alt+R` re-forks from the latest main context. `Alt+N` starts a blank conversation.
 
 ## Features
@@ -51,13 +53,14 @@ What is the main agent doing right now?
 What changed since I opened this side chat?
 ```
 
-**Non-capturing overlay** — Leave it visible and switch focus back to the main editor. Opens at the top of the screen so the main editor stays visible underneath.
+**Non-capturing overlay** — Leave it visible and switch focus back to the main editor. Compact mode opens at the top of the screen so the main editor stays visible underneath. Fullscreen mode uses the available terminal width and height for long answers and scrollback.
 
 ## Controls
 
 | Key | Action |
 |-----|--------|
 | `Alt+/` | Open side chat / toggle focus |
+| `Alt+Shift+F` | Toggle compact / fullscreen view |
 | `Enter` | Send message |
 | `Esc` | Interrupt streaming, or close when idle |
 | `Alt+R` | Re-fork from latest main context |
@@ -87,13 +90,14 @@ Create a `config.json` next to the extension to change the shortcut:
 
 ```json
 {
-  "shortcut": "alt+/"
+  "shortcut": "alt+/",
+  "fullscreenShortcut": "alt+shift+f"
 }
 ```
 
 ## How It Works
 
-The extension clones the current session context, creates a separate agent instance with all extension-registered tools, and renders it in a TUI overlay. Closing saves the conversation in memory so reopening restores it.
+The extension clones the current session context, creates a separate agent instance with all extension-registered tools, and renders it in a TUI overlay. Compact and fullscreen modes resize that same component and agent in place. Closing saves the conversation in memory so reopening restores it.
 
 Main-agent tool execution events are tracked to maintain a set of written file paths. In edit mode, write-capable tools are wrapped to warn before touching those paths.
 

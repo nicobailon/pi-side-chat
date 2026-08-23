@@ -54,6 +54,8 @@ function createOverlay() {
       getEntries: () => [],
     },
     shortcut: "alt+/",
+    fullscreenShortcut: "alt+shift+f",
+    onDisplayModeChange: () => {},
     onOverlapWarning: async () => {
       overlapWarnings++;
       return false;
