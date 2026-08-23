@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FileActivityTracker } from "./file-activity-tracker.ts";
+import { getOverlayOptions } from "./side-chat-layout.ts";
 import { SideChatOverlay, type ForkContext } from "./side-chat-overlay.ts";
 import { extractWritePaths } from "./tool-wrapper.ts";
 
@@ -33,16 +34,26 @@ function getExtensionAgentTools(): AgentTool[] {
 }
 
 const DEFAULT_SHORTCUT = "alt+/";
+const DEFAULT_FULLSCREEN_SHORTCUT = "alt+shift+f";
 const OVERLAY_BLOCKED_ERROR = "PI_SIDE_CHAT_OVERLAY_BLOCKED";
 
-function loadConfig(): { shortcut: string } {
+function loadConfig(): { shortcut: string; fullscreenShortcut: string } {
   const configPath = join(dirname(fileURLToPath(import.meta.url)), "config.json");
   try {
     const config = JSON.parse(readFileSync(configPath, "utf-8"));
     const shortcut = typeof config.shortcut === "string" ? config.shortcut.trim() : "";
-    return { shortcut: shortcut || DEFAULT_SHORTCUT };
+    const fullscreenShortcut = typeof config.fullscreenShortcut === "string"
+      ? config.fullscreenShortcut.trim()
+      : "";
+    return {
+      shortcut: shortcut || DEFAULT_SHORTCUT,
+      fullscreenShortcut: fullscreenShortcut || DEFAULT_FULLSCREEN_SHORTCUT,
+    };
   } catch {
-    return { shortcut: DEFAULT_SHORTCUT };
+    return {
+      shortcut: DEFAULT_SHORTCUT,
+      fullscreenShortcut: DEFAULT_FULLSCREEN_SHORTCUT,
+    };
   }
 }
 
@@ -87,6 +98,7 @@ export default function sideChatExtension(pi: ExtensionAPI) {
       cwd: ctx.cwd,
       extensionTools: getExtensionAgentTools(),
     };
+    const overlayOptions = getOverlayOptions("compact");
 
     try {
       const action = await ctx.ui.custom<"close" | "refork" | "clear">(
@@ -106,6 +118,11 @@ export default function sideChatExtension(pi: ExtensionAPI) {
             modelRegistry: ctx.modelRegistry,
             sessionManager: ctx.sessionManager,
             shortcut: config.shortcut,
+            fullscreenShortcut: config.fullscreenShortcut,
+            onDisplayModeChange: (mode) => {
+              // pi-tui retains this object and reads its fields on each render.
+              Object.assign(overlayOptions, getOverlayOptions(mode));
+            },
             onOverlapWarning: (path) => showOverlapWarning(ctx.ui, path),
             onUnfocus: () => overlayHandle?.unfocus(),
             onClose: (action, messages) => {
@@ -119,13 +136,7 @@ export default function sideChatExtension(pi: ExtensionAPI) {
         },
         {
           overlay: true,
-          overlayOptions: {
-            width: "85%",
-            maxHeight: "35%",
-            anchor: "top-center",
-            margin: { top: 1, left: 2, right: 2 },
-            nonCapturing: true,
-          },
+          overlayOptions,
           onHandle: (handle) => {
             overlayHandle = handle;
             handle.focus();
@@ -147,6 +158,11 @@ export default function sideChatExtension(pi: ExtensionAPI) {
   pi.registerShortcut(config.shortcut, {
     description: "Toggle side chat focus (open if closed)",
     handler: toggleSideChat,
+  });
+
+  pi.registerShortcut(config.fullscreenShortcut, {
+    description: "Toggle side chat fullscreen mode",
+    handler: () => activeOverlay?.toggleDisplayMode(),
   });
 
   pi.registerCommand("side", {

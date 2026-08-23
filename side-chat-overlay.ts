@@ -13,6 +13,7 @@ import {
 import { Type } from "@sinclair/typebox";
 import { Editor, Key, matchesKey, truncateToWidth, visibleWidth, type Component, type Focusable, type TUI } from "@mariozechner/pi-tui";
 import type { FileActivityTracker } from "./file-activity-tracker.ts";
+import { getMaxMessageLines, type DisplayMode } from "./side-chat-layout.ts";
 import { SideChatMessages } from "./side-chat-messages.ts";
 import { wrapToolsWithOverlapDetection } from "./tool-wrapper.ts";
 
@@ -33,6 +34,8 @@ interface SideChatOverlayOptions {
   modelRegistry: ModelRegistry;
   sessionManager: SessionManager;
   shortcut: string;
+  fullscreenShortcut: string;
+  onDisplayModeChange: (mode: DisplayMode) => void;
   onOverlapWarning: (path: string) => Promise<boolean>;
   onUnfocus: () => void;
   onClose: (action: "close" | "refork" | "clear", messages: AgentMessage[]) => void;
@@ -58,6 +61,7 @@ export class SideChatOverlay implements Component, Focusable {
   private isStreaming = false;
   private streamingContent = "";
   private toolMode: "full" | "read-only" = "read-only";
+  private displayMode: DisplayMode = "compact";
   private _focused = true;
   private disposed = false;
   private forkLeafId: string | null;
@@ -244,28 +248,41 @@ export class SideChatOverlay implements Component, Focusable {
     lines.push(this.frameLine(`${headerLeft}${headerGap}${status}`, innerWidth, theme, borderColor));
     lines.push(theme.fg(borderColor, "├" + "─".repeat(width - 2) + "┤"));
 
-    const maxLines = Math.max(3, Math.floor(this.options.tui.terminal.rows * 0.35) - 10);
+    const renderedEditorLines = this.editor.render(innerWidth);
+    const editorLines = this.displayMode === "fullscreen"
+      ? renderedEditorLines.slice(0, Math.max(0, this.options.tui.terminal.rows - 7))
+      : renderedEditorLines;
+    const maxLines = getMaxMessageLines(
+      this.options.tui.terminal.rows,
+      this.displayMode,
+      editorLines.length,
+    );
     this.messages.setMaxVisibleLines(maxLines);
-    const msgLines = this.messages.render(innerWidth);
+    const msgLines = maxLines > 0 ? this.messages.render(innerWidth) : [];
     for (const line of msgLines) lines.push(this.frameLine(line, innerWidth, theme, borderColor));
     for (let i = msgLines.length; i < maxLines; i++) lines.push(this.frameLine("", innerWidth, theme, borderColor));
 
     lines.push(theme.fg(borderColor, "├" + "─".repeat(width - 2) + "┤"));
-    for (const line of this.editor.render(innerWidth)) {
+    for (const line of editorLines) {
       lines.push(this.frameLine(line, innerWidth, theme, borderColor));
     }
 
-    const shortcutLabel = this.options.shortcut.replace(/ctrl/i, "Ctrl").replace(/shift/i, "Shift").replace(/alt/i, "Alt");
+    const shortcutLabel = this.formatShortcut(this.options.shortcut);
+    const fullscreenLabel = this.formatShortcut(this.options.fullscreenShortcut);
     const escHint = this.isStreaming ? "Esc stop" : "Esc close";
+    const displayHint = this.displayMode === "fullscreen" ? "restore" : "fullscreen";
     const modeHint = this.toolMode === "read-only" ? "Ctrl+T → edit mode" : "Ctrl+T → read-only";
     const hints = this._focused
-      ? `${escHint} · Enter send · Alt+R refork · Alt+N clear · ${shortcutLabel} → unfocus · ${modeHint}`
-      : `${shortcutLabel} → focus side chat`;
+      ? `${escHint} · Enter send · ${fullscreenLabel} ${displayHint} · Alt+R refork · Alt+N clear · ${shortcutLabel} → unfocus · ${modeHint}`
+      : `${shortcutLabel} → focus side chat · ${fullscreenLabel} ${displayHint}`;
     lines.push(theme.fg(borderColor, "├" + "─".repeat(width - 2) + "┤"));
     lines.push(this.frameLine(theme.fg("dim", hints), innerWidth, theme, borderColor));
     lines.push(theme.fg(borderColor, "└" + "─".repeat(width - 2) + "┘"));
 
-    return lines.map((l) => visibleWidth(l) > width ? truncateToWidth(l, width) : l);
+    const rendered = lines.map((l) => visibleWidth(l) > width ? truncateToWidth(l, width) : l);
+    return this.displayMode === "fullscreen"
+      ? rendered.slice(0, Math.max(0, this.options.tui.terminal.rows))
+      : rendered;
   }
 
   private frameLine(line: string, width: number, theme: Theme, borderColor: string): string {
@@ -281,6 +298,25 @@ export class SideChatOverlay implements Component, Focusable {
     this.agent.state.tools = tools;
   }
 
+  private formatShortcut(shortcut: string): string {
+    return shortcut
+      .split("+")
+      .map((part) => {
+        const lower = part.toLowerCase();
+        if (lower === "ctrl") return "Ctrl";
+        if (lower === "shift") return "Shift";
+        if (lower === "alt") return "Alt";
+        return part.length === 1 ? part.toUpperCase() : part;
+      })
+      .join("+");
+  }
+
+  toggleDisplayMode(): void {
+    this.displayMode = this.displayMode === "compact" ? "fullscreen" : "compact";
+    this.options.onDisplayModeChange(this.displayMode);
+    this.options.tui.requestRender();
+  }
+
   handleInput(data: string): void {
     if (matchesKey(data, Key.escape)) {
       if (this.isStreaming) {
@@ -291,6 +327,7 @@ export class SideChatOverlay implements Component, Focusable {
       return;
     }
     if (matchesKey(data, this.options.shortcut)) { this.options.onUnfocus(); return; }
+    if (matchesKey(data, this.options.fullscreenShortcut)) { this.toggleDisplayMode(); return; }
     if (matchesKey(data, Key.alt("r"))) { this.dispose("refork"); return; }
     if (matchesKey(data, Key.alt("n"))) { this.dispose("clear"); return; }
     if (matchesKey(data, Key.ctrl("t"))) {
