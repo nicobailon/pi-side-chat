@@ -2,9 +2,22 @@
 
 ## [Unreleased]
 
-- Fixed Ctrl+T edit-mode toggling on current pi versions. Thanks to [@johnrichardrinehart](https://github.com/johnrichardrinehart) for PR #2.
+## [0.2.0] - 2026-08-23
+
+### Highlights
+
+- Open side chat in fullscreen when you need more room.
+- Switch between read-only and edit mode reliably on current pi versions.
+- Ask side questions while the main agent is busy without the side chat taking over the main task.
+
+### Added
+
 - Added configurable fullscreen toggling for the side-chat overlay. Thanks to [@johnrichardrinehart](https://github.com/johnrichardrinehart) for PR #3.
-- Fixed side-chat forks opened during main-agent tool calls by treating copied context as reference-only and sanitizing unfinished tool exchanges. Thanks to [@yceachan](https://github.com/yceachan) for issue #5 and the PR #8 design.
+
+### Fixed
+
+- Fixed Ctrl+T edit-mode toggling on current pi versions. Thanks to [@johnrichardrinehart](https://github.com/johnrichardrinehart) for PR #2.
+- Fixed side chats opened during main-agent tool calls so copied main context is treated as background context, not as the side chat's own task. Thanks to [@yceachan](https://github.com/yceachan) for issue #5 and the PR #8 design.
 
 ## [0.1.4] - 2026-04-15
 
