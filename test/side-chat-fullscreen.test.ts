@@ -40,7 +40,7 @@ function createOverlay(rows = 40) {
     modelRegistry: { getApiKeyForProvider: async () => "test" },
     sessionManager: { getLeafId: () => null, getEntries: () => [] },
     shortcut: "alt+/",
-    fullscreenShortcut: "alt+shift+f",
+    fullscreenShortcut: "alt+shift+m",
     onDisplayModeChange: (mode: DisplayMode) => { displayChanges.push(mode); },
     onOverlapWarning: async () => true,
     onUnfocus: () => {},
@@ -93,7 +93,7 @@ test("fullscreen toggle preserves live overlay state and consumes its key", () =
   privateState.isStreaming = true;
   const cursor = privateState.editor.getCursor();
 
-  state.overlay.handleInput("\x1b[70;4u");
+  state.overlay.handleInput("\x1b[77;4u");
 
   assert.deepEqual(state.displayChanges, ["fullscreen"]);
   assert.equal(internals(state.overlay).agent, originalAgent);
@@ -106,10 +106,10 @@ test("fullscreen toggle preserves live overlay state and consumes its key", () =
 
   const fullscreenLines = state.overlay.render(120);
   assert.equal(fullscreenLines.length, 40);
-  assert.match(fullscreenLines.join("\n"), /Alt\+Shift\+F restore/);
+  assert.match(fullscreenLines.join("\n"), /Alt\+Shift\+M restore/);
   assert.ok(fullscreenLines.every((line) => visibleWidth(line) <= 120));
 
-  state.overlay.handleInput("\x1b[70;4u");
+  state.overlay.handleInput("\x1b[77;4u");
 
   assert.deepEqual(state.displayChanges, ["fullscreen", "compact"]);
   assert.equal(privateState.editor.getText(), "draft text");
@@ -120,7 +120,7 @@ test("fullscreen toggle preserves live overlay state and consumes its key", () =
 
   const compactLines = state.overlay.render(120);
   assert.equal(compactLines.length, 14);
-  assert.match(compactLines.join("\n"), /Alt\+Shift\+F fullscreen/);
+  assert.match(compactLines.join("\n"), /Alt\+Shift\+M fullscreen/);
   assert.ok(compactLines.every((line) => visibleWidth(line) <= 120));
 });
 
@@ -128,7 +128,7 @@ test("resize recalculates both display modes without exceeding width", () => {
   const state = createOverlay(24);
 
   assert.equal(state.overlay.render(80).length, 13);
-  state.overlay.handleInput("\x1b[70;4u");
+  state.overlay.handleInput("\x1b[77;4u");
   assert.equal(state.overlay.render(80).length, 24);
 
   state.tui.terminal.rows = 50;
@@ -141,7 +141,7 @@ test("fullscreen stays within terminal rows with a multiline editor", () => {
   const privateState = internals(state.overlay);
   privateState.editor.setText("line one\nline two\nline three\nline four");
 
-  state.overlay.handleInput("\x1b[70;4u");
+  state.overlay.handleInput("\x1b[77;4u");
 
   assert.equal(state.overlay.render(80).length, 10);
 });
@@ -149,7 +149,7 @@ test("fullscreen stays within terminal rows with a multiline editor", () => {
 test("fullscreen stays within terminals shorter than its fixed chrome", () => {
   const state = createOverlay(5);
 
-  state.overlay.handleInput("\x1b[70;4u");
+  state.overlay.handleInput("\x1b[77;4u");
 
   assert.equal(state.overlay.render(80).length, 5);
 });

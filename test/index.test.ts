@@ -23,7 +23,7 @@ test("extension updates the live overlay options object in place", async () => {
   sideChatExtension(pi as never);
 
   const command = commands.get("side");
-  const fullscreenShortcut = shortcuts.get("alt+shift+f");
+  const fullscreenShortcut = shortcuts.get("alt+shift+m");
   assert.ok(command);
   assert.ok(fullscreenShortcut);
 
@@ -84,7 +84,7 @@ test("extension updates the live overlay options object in place", async () => {
           nonCapturing: true,
         });
 
-        overlay.handleInput("\x1b[70;4u");
+        overlay.handleInput("\x1b[77;4u");
         assert.equal(options.overlayOptions, originalOptions);
         assert.deepEqual(originalOptions, {
           width: "100%",
