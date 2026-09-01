@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Changed the default fullscreen shortcut to `Alt+Shift+M` so it no longer conflicts with pi-interactive-shell's focus shortcut.
+
 ## [0.2.0] - 2026-08-23
 
 ### Highlights

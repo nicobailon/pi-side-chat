@@ -34,7 +34,7 @@ function getExtensionAgentTools(): AgentTool[] {
 }
 
 const DEFAULT_SHORTCUT = "alt+/";
-const DEFAULT_FULLSCREEN_SHORTCUT = "alt+shift+f";
+const DEFAULT_FULLSCREEN_SHORTCUT = "alt+shift+m";
 const OVERLAY_BLOCKED_ERROR = "PI_SIDE_CHAT_OVERLAY_BLOCKED";
 
 function loadConfig(): { shortcut: string; fullscreenShortcut: string } {

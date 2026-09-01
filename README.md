@@ -27,7 +27,7 @@ Press `Esc` to close it. Reopen with `Alt+/` to continue where you left off.
 
 **Toggle mode** — `Ctrl+T` switches between read-only and edit mode.
 
-**Toggle fullscreen** — `Alt+Shift+F` expands the open side chat to the terminal bounds. Press it again to restore the compact overlay. The conversation, draft, focus, and scroll position remain in place.
+**Toggle fullscreen** — `Alt+Shift+M` expands the open side chat to the terminal bounds. Press it again to restore the compact overlay. The conversation, draft, focus, and scroll position remain in place.
 
 **Start fresh** — `Alt+R` re-forks from the latest main context. `Alt+N` starts a blank conversation.
 
@@ -60,7 +60,7 @@ What changed since I opened this side chat?
 | Key | Action |
 |-----|--------|
 | `Alt+/` | Open side chat / toggle focus |
-| `Alt+Shift+F` | Toggle compact / fullscreen view |
+| `Alt+Shift+M` | Toggle compact / fullscreen view |
 | `Enter` | Send message |
 | `Esc` | Interrupt streaming, or close when idle |
 | `Alt+R` | Re-fork from latest main context |
@@ -91,7 +91,7 @@ Create a `config.json` next to the extension to change the shortcut:
 ```json
 {
   "shortcut": "alt+/",
-  "fullscreenShortcut": "alt+shift+f"
+  "fullscreenShortcut": "alt+shift+m"
 }
 ```
 
