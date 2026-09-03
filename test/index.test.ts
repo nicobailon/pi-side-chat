@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import test from "node:test";
+import { join } from "node:path";
 import type { OverlayOptions } from "@mariozechner/pi-tui";
 import sideChatExtension from "../index.ts";
 
@@ -114,4 +117,38 @@ test("extension updates the live overlay options object in place", async () => {
   };
 
   await command.handler("", context);
+});
+
+test("loads shortcuts from the agent dir config before the module-local config", () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "pi-side-chat-test-"));
+  writeFileSync(
+    join(agentDir, "pi-side-chat.json"),
+    JSON.stringify({ shortcut: "ctrl+\\", fullscreenShortcut: "ctrl+space" }),
+  );
+  const previous = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = agentDir;
+  try {
+    const shortcuts = new Map<string, unknown>();
+    const pi = {
+      on: () => {},
+      getThinkingLevel: () => "off",
+      registerCommand: () => {},
+      registerShortcut: (name: string, definition: unknown) => {
+        shortcuts.set(name, definition);
+      },
+    };
+
+    sideChatExtension(pi as never);
+
+    assert.ok(shortcuts.has("ctrl+\\"));
+    assert.ok(shortcuts.has("ctrl+space"));
+    assert.equal(shortcuts.has("alt+/"), false);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.PI_CODING_AGENT_DIR;
+    } else {
+      process.env.PI_CODING_AGENT_DIR = previous;
+    }
+    rmSync(agentDir, { recursive: true, force: true });
+  }
 });

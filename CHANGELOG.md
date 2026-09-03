@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Configuration can now be read from `pi-side-chat.json` in the Pi agent directory, so custom shortcuts survive extension updates. The module-local `config.json` remains as a fallback.
+
 ### Changed
 
 - Changed the default fullscreen shortcut to `Alt+Shift+M` so it no longer conflicts with pi-interactive-shell's focus shortcut.

@@ -1,7 +1,7 @@
 import type { AgentMessage, AgentTool } from "@mariozechner/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext, ExtensionUIContext } from "@mariozechner/pi-coding-agent";
 import type { OverlayHandle } from "@mariozechner/pi-tui";
-import { buildSessionContext, ExtensionRunner } from "@mariozechner/pi-coding-agent";
+import { buildSessionContext, ExtensionRunner, getAgentDir } from "@mariozechner/pi-coding-agent";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,23 +38,33 @@ const DEFAULT_FULLSCREEN_SHORTCUT = "alt+shift+m";
 const OVERLAY_BLOCKED_ERROR = "PI_SIDE_CHAT_OVERLAY_BLOCKED";
 
 function loadConfig(): { shortcut: string; fullscreenShortcut: string } {
-  const configPath = join(dirname(fileURLToPath(import.meta.url)), "config.json");
-  try {
-    const config = JSON.parse(readFileSync(configPath, "utf-8"));
-    const shortcut = typeof config.shortcut === "string" ? config.shortcut.trim() : "";
-    const fullscreenShortcut = typeof config.fullscreenShortcut === "string"
-      ? config.fullscreenShortcut.trim()
-      : "";
-    return {
-      shortcut: shortcut || DEFAULT_SHORTCUT,
-      fullscreenShortcut: fullscreenShortcut || DEFAULT_FULLSCREEN_SHORTCUT,
-    };
-  } catch {
-    return {
-      shortcut: DEFAULT_SHORTCUT,
-      fullscreenShortcut: DEFAULT_FULLSCREEN_SHORTCUT,
-    };
+  // The module-local config.json disappears on every extension update/reinstall,
+  // so the agent-dir location is preferred and the module-local file is the fallback.
+  const paths = [
+    join(getAgentDir(), "pi-side-chat.json"),
+    join(dirname(fileURLToPath(import.meta.url)), "config.json"),
+  ];
+  for (const configPath of paths) {
+    try {
+      const config = JSON.parse(readFileSync(configPath, "utf-8"));
+      const shortcut = typeof config.shortcut === "string" ? config.shortcut.trim() : "";
+      const fullscreenShortcut = typeof config.fullscreenShortcut === "string"
+        ? config.fullscreenShortcut.trim()
+        : "";
+      if (shortcut || fullscreenShortcut) {
+        return {
+          shortcut: shortcut || DEFAULT_SHORTCUT,
+          fullscreenShortcut: fullscreenShortcut || DEFAULT_FULLSCREEN_SHORTCUT,
+        };
+      }
+    } catch {
+      // Missing, unreadable, or invalid JSON: try the next location.
+    }
   }
+  return {
+    shortcut: DEFAULT_SHORTCUT,
+    fullscreenShortcut: DEFAULT_FULLSCREEN_SHORTCUT,
+  };
 }
 
 export default function sideChatExtension(pi: ExtensionAPI) {
