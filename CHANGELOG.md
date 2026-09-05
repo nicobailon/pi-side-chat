@@ -2,13 +2,22 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-04
+
+### Highlights
+
+- Keep custom shortcuts when updating or reinstalling the extension.
+- Store shortcut settings alongside your other Pi settings.
+- Toggle fullscreen without conflicting with pi-interactive-shell.
+
 ### Added
 
-- Configuration can now be read from `pi-side-chat.json` in the Pi agent directory, so custom shortcuts survive extension updates. Thanks to [@Jish2](https://github.com/Jish2) for PR #11.
+- Load custom shortcuts from `pi-side-chat.json` in the Pi agent directory (`~/.pi/agent` by default, or `$PI_CODING_AGENT_DIR` when set). Thanks to [@Jish2](https://github.com/Jish2) for PR #11.
 
 ### Changed
 
-- Changed the default fullscreen shortcut to `Alt+Shift+M` so it no longer conflicts with pi-interactive-shell's focus shortcut.
+- Changed the default fullscreen shortcut from `Alt+Shift+F` to `Alt+Shift+M` to avoid conflicting with pi-interactive-shell's focus shortcut.
+- The module-local `config.json` is no longer read. Move custom settings to `pi-side-chat.json` in your Pi agent directory. Default shortcuts need no configuration.
 
 ## [0.2.0] - 2026-08-23
 
