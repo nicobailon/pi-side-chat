@@ -49,12 +49,11 @@ function loadConfig(): { shortcut: string; fullscreenShortcut: string } {
       fullscreenShortcut: fullscreenShortcut || DEFAULT_FULLSCREEN_SHORTCUT,
     };
   } catch {
-    // Missing, unreadable, or invalid JSON: use defaults.
+    return {
+      shortcut: DEFAULT_SHORTCUT,
+      fullscreenShortcut: DEFAULT_FULLSCREEN_SHORTCUT,
+    };
   }
-  return {
-    shortcut: DEFAULT_SHORTCUT,
-    fullscreenShortcut: DEFAULT_FULLSCREEN_SHORTCUT,
-  };
 }
 
 export default function sideChatExtension(pi: ExtensionAPI) {

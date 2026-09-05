@@ -42,10 +42,9 @@ test("extension updates the live overlay options object in place", async () => {
   sideChatExtension(pi as never);
 
   const command = commands.get("side");
-  const shortcut = shortcuts.get("alt+/");
   const fullscreenShortcut = shortcuts.get("alt+shift+m");
   assert.ok(command);
-  assert.ok(shortcut);
+  assert.ok(shortcuts.get("alt+/"));
   assert.ok(fullscreenShortcut);
 
   const model = {
@@ -146,7 +145,6 @@ test("loads custom shortcuts from the agent dir config", () => {
   const shortcuts = new Map<string, unknown>();
   const pi = {
     on: () => {},
-    getThinkingLevel: () => "off",
     registerCommand: () => {},
     registerShortcut: (name: string, definition: unknown) => {
       shortcuts.set(name, definition);
