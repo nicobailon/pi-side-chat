@@ -6,6 +6,22 @@ import { join } from "node:path";
 import type { OverlayOptions } from "@mariozechner/pi-tui";
 import sideChatExtension from "../index.ts";
 
+const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+const testAgentDir = mkdtempSync(join(tmpdir(), "pi-side-chat-test-"));
+
+test.before(() => {
+  process.env.PI_CODING_AGENT_DIR = testAgentDir;
+});
+
+test.after(() => {
+  if (previousAgentDir === undefined) {
+    delete process.env.PI_CODING_AGENT_DIR;
+  } else {
+    process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+  }
+  rmSync(testAgentDir, { recursive: true, force: true });
+});
+
 test("extension updates the live overlay options object in place", async () => {
   const commands = new Map<string, { handler: (args: string, context: unknown) => unknown }>();
   const shortcuts = new Map<string, { handler: (context: unknown) => unknown }>();
@@ -26,8 +42,10 @@ test("extension updates the live overlay options object in place", async () => {
   sideChatExtension(pi as never);
 
   const command = commands.get("side");
+  const shortcut = shortcuts.get("alt+/");
   const fullscreenShortcut = shortcuts.get("alt+shift+m");
   assert.ok(command);
+  assert.ok(shortcut);
   assert.ok(fullscreenShortcut);
 
   const model = {
@@ -119,36 +137,26 @@ test("extension updates the live overlay options object in place", async () => {
   await command.handler("", context);
 });
 
-test("loads shortcuts from the agent dir config before the module-local config", () => {
-  const agentDir = mkdtempSync(join(tmpdir(), "pi-side-chat-test-"));
+test("loads custom shortcuts from the agent dir config", () => {
   writeFileSync(
-    join(agentDir, "pi-side-chat.json"),
+    join(testAgentDir, "pi-side-chat.json"),
     JSON.stringify({ shortcut: "ctrl+\\", fullscreenShortcut: "ctrl+space" }),
   );
-  const previous = process.env.PI_CODING_AGENT_DIR;
-  process.env.PI_CODING_AGENT_DIR = agentDir;
-  try {
-    const shortcuts = new Map<string, unknown>();
-    const pi = {
-      on: () => {},
-      getThinkingLevel: () => "off",
-      registerCommand: () => {},
-      registerShortcut: (name: string, definition: unknown) => {
-        shortcuts.set(name, definition);
-      },
-    };
 
-    sideChatExtension(pi as never);
+  const shortcuts = new Map<string, unknown>();
+  const pi = {
+    on: () => {},
+    getThinkingLevel: () => "off",
+    registerCommand: () => {},
+    registerShortcut: (name: string, definition: unknown) => {
+      shortcuts.set(name, definition);
+    },
+  };
 
-    assert.ok(shortcuts.has("ctrl+\\"));
-    assert.ok(shortcuts.has("ctrl+space"));
-    assert.equal(shortcuts.has("alt+/"), false);
-  } finally {
-    if (previous === undefined) {
-      delete process.env.PI_CODING_AGENT_DIR;
-    } else {
-      process.env.PI_CODING_AGENT_DIR = previous;
-    }
-    rmSync(agentDir, { recursive: true, force: true });
-  }
+  sideChatExtension(pi as never);
+
+  assert.ok(shortcuts.has("ctrl+\\"));
+  assert.ok(shortcuts.has("ctrl+space"));
+  assert.equal(shortcuts.has("alt+/"), false);
+  assert.equal(shortcuts.has("alt+shift+m"), false);
 });

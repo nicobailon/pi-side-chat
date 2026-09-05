@@ -4,7 +4,7 @@
 
 ### Added
 
-- Configuration can now be read from `pi-side-chat.json` in the Pi agent directory, so custom shortcuts survive extension updates. The module-local `config.json` remains as a fallback.
+- Configuration can now be read from `pi-side-chat.json` in the Pi agent directory, so custom shortcuts survive extension updates. Thanks to [@Jish2](https://github.com/Jish2) for PR #11.
 
 ### Changed
 

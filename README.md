@@ -95,7 +95,7 @@ Create `pi-side-chat.json` in your Pi agent directory (`~/.pi/agent/pi-side-chat
 }
 ```
 
-A `config.json` next to the extension module also works as a fallback, but it is deleted whenever the extension is updated or reinstalled.
+The extension reads only this agent-directory file. If you previously used a `config.json` next to the extension module, move its contents here and rename it to `pi-side-chat.json`. `PI_CODING_AGENT_DIR` determines the agent directory when set.
 
 ## How It Works
 
