@@ -86,7 +86,7 @@ Available to the side agent only.
 
 ## Configuration
 
-Create a `config.json` next to the extension to change the shortcut:
+Create `pi-side-chat.json` in your Pi agent directory (`~/.pi/agent/pi-side-chat.json`, or `$PI_CODING_AGENT_DIR/pi-side-chat.json` when set) to change the shortcuts:
 
 ```json
 {
@@ -94,6 +94,8 @@ Create a `config.json` next to the extension to change the shortcut:
   "fullscreenShortcut": "alt+shift+m"
 }
 ```
+
+The extension reads only this agent-directory file. If you previously used a `config.json` next to the extension module, move its contents here and rename it to `pi-side-chat.json`. `PI_CODING_AGENT_DIR` determines the agent directory when set.
 
 ## How It Works
 

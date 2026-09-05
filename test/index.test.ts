@@ -1,7 +1,26 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import test from "node:test";
+import { join } from "node:path";
 import type { OverlayOptions } from "@mariozechner/pi-tui";
 import sideChatExtension from "../index.ts";
+
+const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+const testAgentDir = mkdtempSync(join(tmpdir(), "pi-side-chat-test-"));
+
+test.before(() => {
+  process.env.PI_CODING_AGENT_DIR = testAgentDir;
+});
+
+test.after(() => {
+  if (previousAgentDir === undefined) {
+    delete process.env.PI_CODING_AGENT_DIR;
+  } else {
+    process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+  }
+  rmSync(testAgentDir, { recursive: true, force: true });
+});
 
 test("extension updates the live overlay options object in place", async () => {
   const commands = new Map<string, { handler: (args: string, context: unknown) => unknown }>();
@@ -25,6 +44,7 @@ test("extension updates the live overlay options object in place", async () => {
   const command = commands.get("side");
   const fullscreenShortcut = shortcuts.get("alt+shift+m");
   assert.ok(command);
+  assert.ok(shortcuts.get("alt+/"));
   assert.ok(fullscreenShortcut);
 
   const model = {
@@ -114,4 +134,27 @@ test("extension updates the live overlay options object in place", async () => {
   };
 
   await command.handler("", context);
+});
+
+test("loads custom shortcuts from the agent dir config", () => {
+  writeFileSync(
+    join(testAgentDir, "pi-side-chat.json"),
+    JSON.stringify({ shortcut: "ctrl+\\", fullscreenShortcut: "ctrl+space" }),
+  );
+
+  const shortcuts = new Map<string, unknown>();
+  const pi = {
+    on: () => {},
+    registerCommand: () => {},
+    registerShortcut: (name: string, definition: unknown) => {
+      shortcuts.set(name, definition);
+    },
+  };
+
+  sideChatExtension(pi as never);
+
+  assert.ok(shortcuts.has("ctrl+\\"));
+  assert.ok(shortcuts.has("ctrl+space"));
+  assert.equal(shortcuts.has("alt+/"), false);
+  assert.equal(shortcuts.has("alt+shift+m"), false);
 });

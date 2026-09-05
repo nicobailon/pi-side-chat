@@ -1,10 +1,9 @@
 import type { AgentMessage, AgentTool } from "@mariozechner/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext, ExtensionUIContext } from "@mariozechner/pi-coding-agent";
 import type { OverlayHandle } from "@mariozechner/pi-tui";
-import { buildSessionContext, ExtensionRunner } from "@mariozechner/pi-coding-agent";
+import { buildSessionContext, ExtensionRunner, getAgentDir } from "@mariozechner/pi-coding-agent";
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { FileActivityTracker } from "./file-activity-tracker.ts";
 import { getOverlayOptions } from "./side-chat-layout.ts";
 import { SideChatOverlay, type ForkContext } from "./side-chat-overlay.ts";
@@ -38,7 +37,7 @@ const DEFAULT_FULLSCREEN_SHORTCUT = "alt+shift+m";
 const OVERLAY_BLOCKED_ERROR = "PI_SIDE_CHAT_OVERLAY_BLOCKED";
 
 function loadConfig(): { shortcut: string; fullscreenShortcut: string } {
-  const configPath = join(dirname(fileURLToPath(import.meta.url)), "config.json");
+  const configPath = join(getAgentDir(), "pi-side-chat.json");
   try {
     const config = JSON.parse(readFileSync(configPath, "utf-8"));
     const shortcut = typeof config.shortcut === "string" ? config.shortcut.trim() : "";
