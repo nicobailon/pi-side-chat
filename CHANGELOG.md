@@ -2,10 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added Oh My Pi (OMP) support for focus switching, the input editor, and API-key lookup, with Pi behavior unchanged. Thanks to [@devgony](https://github.com/devgony) for PR #13, tested with OMP 18.1.11.
+
 ### Fixed
 
 - Fixed side chat failing with "No API provider registered" when the current model comes from an extension-registered provider, such as the Claude bridge. Side-chat requests now go through Pi's model registry, which also resolves API-key, OAuth, and header-based credentials for each request.
 - Side-chat requests now carry their own session ID, separate from the main session's, and keep it for every turn and tool round trip. Providers can use it to keep side-chat traffic apart from main-session traffic.
+- Fixed thinking level `off` on OMP, which now disables reasoning instead of sending `"off"` as an effort level (PR #13).
 
 ### Changed
 

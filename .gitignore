@@ -1,3 +1,6 @@
 .pi/
 config.json
 pi-side-chat-plan.md
+node_modules/
+package-lock.json
+progress.md

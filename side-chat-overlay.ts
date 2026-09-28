@@ -59,6 +59,13 @@ Be concise - this is for quick questions. If user wants something main is doing,
 
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
+// Key lookup for registries without streamSimple (such as OMP's): the Agent then streams
+// itself and asks for keys by model or by provider name.
+interface ApiKeyRegistry {
+  getApiKey(model: Model<any>): Promise<string | undefined>;
+  getApiKeyForProvider(provider: string): Promise<string | undefined>;
+}
+
 export class SideChatOverlay implements Component, Focusable {
   private agent: Agent;
   private messages: SideChatMessages;
@@ -94,23 +101,53 @@ export class SideChatOverlay implements Component, Focusable {
     this.forkLeafId = sessionManager.getLeafId();
     this.peekMainTool = this.createPeekMainTool(sessionManager);
 
+    // Pi stores "off" as a thinking level; OMP separates effort from disabling reasoning.
+    const usesEffortState = "setDisableReasoning" in Agent.prototype;
+    const thinkingOff = forkContext.thinkingLevel === "off";
+    const registry = modelRegistry as ModelRegistry & ApiKeyRegistry;
+
+    // Pi's options type requires streamFn; Agents that stream themselves accept getApiKey instead.
     this.agent = new Agent({
       initialState: {
         systemPrompt: forkContext.systemPrompt + SIDE_CHAT_PROMPT,
         model: forkContext.model,
-        thinkingLevel: forkContext.thinkingLevel,
+        ...(usesEffortState
+          ? { thinkingLevel: thinkingOff ? undefined : forkContext.thinkingLevel, disableReasoning: thinkingOff }
+          : { thinkingLevel: forkContext.thinkingLevel }),
         tools: [...initialTools, ...forkContext.extensionTools, this.peekMainTool],
         messages: framingMessage ? [...forkedMessages, framingMessage] : forkedMessages,
       },
       convertToLlm,
-      streamFn: (model, context, streamOptions) => modelRegistry.streamSimple(model, context, streamOptions),
+      // The registry resolves credentials per request; only hosts without it get a key callback.
+      ...(typeof registry.streamSimple === "function"
+        ? { streamFn: (model, context, streamOptions) => registry.streamSimple(model, context, streamOptions) }
+        : {
+          getApiKey: async (target: string | Model<any>) => {
+            const provider = typeof target === "string" ? target : target.provider;
+            const key = typeof target === "string"
+              ? await registry.getApiKeyForProvider(target)
+              : await registry.getApiKey(target);
+            if (!key) throw new Error(`No API key available for provider "${provider}"`);
+            return key;
+          },
+        }),
       sessionId: randomUUID(),
-    });
+    } as ConstructorParameters<typeof Agent>[0]);
 
     this.agent.subscribe((e) => this.handleAgentEvent(e));
     this.messages = new SideChatMessages(theme, 20);
     this.messages.setMessages(forkedMessages);
-    this.editor = new Editor(tui, { borderColor: (t) => theme.fg("borderMuted", t), selectList: getSelectListTheme() }, { paddingX: 0 });
+    const editorTheme = { borderColor: (t: string) => theme.fg("borderMuted", t), selectList: getSelectListTheme() };
+    // OMP's select-list theme carries symbols and its Editor takes only a complete theme.
+    if ("symbols" in editorTheme.selectList) {
+      const ompTheme = { ...editorTheme, symbols: editorTheme.selectList.symbols };
+      const OmpEditor = Editor as unknown as new (theme: typeof ompTheme) => Editor & { setPaddingX(padding: number): void };
+      const editor = new OmpEditor(ompTheme);
+      editor.setPaddingX(0);
+      this.editor = editor;
+    } else {
+      this.editor = new Editor(tui, editorTheme, { paddingX: 0 });
+    }
     this.editor.onSubmit = (text) => this.handleSubmit(text);
   }
 
