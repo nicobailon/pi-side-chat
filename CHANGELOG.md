@@ -2,19 +2,28 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-28
+
+### Highlights
+
+- Use side chat in Oh My Pi while keeping the same workflow on Pi.
+- Chat with extension-provided models, including Claude bridge models, without provider errors.
+- Keep side-chat provider sessions separate from the main conversation.
+- Turn reasoning off reliably when using OMP.
+
 ### Added
 
-- Added Oh My Pi (OMP) support for focus switching, the input editor, and API-key lookup, with Pi behavior unchanged. Thanks to [@devgony](https://github.com/devgony) for PR #13, tested with OMP 18.1.11.
-
-### Fixed
-
-- Fixed side chat failing with "No API provider registered" when the current model comes from an extension-registered provider, such as the Claude bridge. Side-chat requests now go through Pi's model registry, which also resolves API-key, OAuth, and header-based credentials for each request.
-- Side-chat requests now carry their own session ID, separate from the main session's, and keep it for every turn and tool round trip. Providers can use it to keep side-chat traffic apart from main-session traffic.
-- Fixed thinking level `off` on OMP, which now disables reasoning instead of sending `"off"` as an effort level (PR #13).
+- Oh My Pi (OMP) support for focus switching, the input editor, and API-key lookup, with Pi behavior unchanged. Thanks to [@devgony](https://github.com/devgony) for PR #13, tested with OMP 18.1.11.
 
 ### Changed
 
-- Side chat now requires Pi 0.86.0 or newer, the first release whose model registry exposes `streamSimple()`.
+- Side chat now requires Pi 0.86.0 or newer.
+
+### Fixed
+
+- Extension-provided models, such as Claude bridge models, now work in side chat without a "No API provider registered" error.
+- Side-chat requests now use a separate session ID from the main conversation and keep it across turns and tool calls.
+- Thinking level `off` now disables reasoning correctly on OMP instead of sending `"off"` as an effort level (PR #13).
 
 ## [0.3.0] - 2026-09-04
 
