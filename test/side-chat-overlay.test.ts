@@ -11,7 +11,7 @@ const extensionTool: AgentTool = {
   execute: async () => ({ content: [{ type: "text", text: "ok" }], details: {} }),
 };
 
-function createOverlay() {
+function createOverlay(modelRegistry: object = { getApiKeyForProvider: async () => "test" }) {
   let renderRequests = 0;
   let overlapWarnings = 0;
   const tui = {
@@ -26,7 +26,7 @@ function createOverlay() {
     model: {
       id: "test",
       name: "test",
-      api: "openai-completions",
+      api: "side-chat-test-api",
       provider: "test",
       baseUrl: "",
       reasoning: false,
@@ -48,8 +48,9 @@ function createOverlay() {
       writeCount: 0,
       hasWritten: () => true,
     },
-    modelRegistry: { getApiKeyForProvider: async () => "test" },
+    modelRegistry,
     sessionManager: {
+      getSessionId: () => "main-session",
       getLeafId: () => null,
       getEntries: () => [],
     },
@@ -137,4 +138,79 @@ test("Ctrl+T falls back to Agent.setTools on pi-agent-core before 0.65.0", () =>
   assert.equal(setToolsCalls, 2);
   assert.match(state.overlay.render(100).join("\n"), /\[Read-only\]/);
   assert.deepEqual(toolNames(state.overlay), ["read", "grep", "find", "ls", "extension_tool", "peek_main"]);
+});
+
+interface RegistryCall {
+  sessionId?: string;
+  apiKey?: string;
+  lastRole?: string;
+}
+
+function assistantStream(content: unknown[], stopReason: "stop" | "toolUse") {
+  const message = {
+    role: "assistant",
+    content,
+    api: "side-chat-test-api",
+    provider: "test",
+    model: "test",
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+    stopReason,
+    timestamp: Date.now(),
+  };
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield { type: "start", partial: message };
+      yield { type: "done", reason: stopReason, message };
+    },
+    result: async () => message,
+  };
+}
+
+// Stands in for a provider registered by an extension: it exists only in the
+// model registry, so the side chat must stream through modelRegistry.streamSimple.
+function createStreamingRegistry() {
+  const calls: RegistryCall[] = [];
+  return {
+    calls,
+    registry: {
+      streamSimple: (_model: unknown, context: { messages: Array<{ role: string }> }, options?: { sessionId?: string; apiKey?: string }) => {
+        const lastRole = context.messages.at(-1)?.role;
+        calls.push({ sessionId: options?.sessionId, apiKey: options?.apiKey, lastRole });
+        return lastRole === "toolResult"
+          ? assistantStream([{ type: "text", text: "side answer" }], "stop")
+          : assistantStream([{ type: "toolCall", id: "peek-1", name: "peek_main", arguments: {} }], "toolUse");
+      },
+    },
+  };
+}
+
+async function submit(overlay: SideChatOverlay, text: string) {
+  await (overlay as unknown as { handleSubmit(text: string): Promise<void> }).handleSubmit(text);
+}
+
+test("side chat turns and tool round trips stream through the model registry with one side-chat session id", async () => {
+  const first = createStreamingRegistry();
+  const state = createOverlay(first.registry);
+
+  await submit(state.overlay, "What is main doing?");
+
+  assert.deepEqual(first.calls.map((call) => call.lastRole), ["user", "toolResult"]);
+  const sessionId = first.calls[0]?.sessionId;
+  assert.equal(typeof sessionId, "string");
+  assert.ok(sessionId);
+  assert.notEqual(sessionId, "main-session");
+  assert.equal(first.calls[1]?.sessionId, sessionId);
+  // Authentication is left to the registry so OAuth and header-based providers resolve per request.
+  assert.deepEqual(first.calls.map((call) => call.apiKey), [undefined, undefined]);
+
+  await submit(state.overlay, "And now?");
+  assert.equal(first.calls.length, 4);
+  assert.ok(first.calls.every((call) => call.sessionId === sessionId));
+
+  const second = createStreamingRegistry();
+  await submit(createOverlay(second.registry).overlay, "Another side chat");
+  assert.equal(second.calls.length, 2);
+  assert.ok(second.calls[0]?.sessionId);
+  assert.notEqual(second.calls[0]?.sessionId, sessionId);
+  assert.notEqual(second.calls[0]?.sessionId, "main-session");
 });

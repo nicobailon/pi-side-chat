@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Agent, type AgentEvent, type AgentMessage, type AgentTool, type ThinkingLevel } from "@mariozechner/pi-agent-core";
 import type { Model } from "@mariozechner/pi-ai";
 import {
@@ -102,11 +103,8 @@ export class SideChatOverlay implements Component, Focusable {
         messages: framingMessage ? [...forkedMessages, framingMessage] : forkedMessages,
       },
       convertToLlm,
-      getApiKey: async (provider) => {
-        const key = await modelRegistry.getApiKeyForProvider(provider);
-        if (!key) throw new Error("No API key available");
-        return key;
-      },
+      streamFn: (model, context, streamOptions) => modelRegistry.streamSimple(model, context, streamOptions),
+      sessionId: randomUUID(),
     });
 
     this.agent.subscribe((e) => this.handleAgentEvent(e));
