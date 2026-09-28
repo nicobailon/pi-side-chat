@@ -97,6 +97,18 @@ Create `pi-side-chat.json` in your Pi agent directory (`~/.pi/agent/pi-side-chat
 
 The extension reads only this agent-directory file. If you previously used a `config.json` next to the extension module, move its contents here and rename it to `pi-side-chat.json`. `PI_CODING_AGENT_DIR` determines the agent directory when set.
 
+## Oh My Pi (OMP)
+
+Side chat also runs under Oh My Pi (OMP). [@devgony](https://github.com/devgony) contributed OMP support in PR #13 and tested it with OMP 18.1.11. To use a source checkout:
+
+```bash
+omp plugin link /path/to/pi-side-chat
+```
+
+Restart OMP and run `/side`. OMP provides the host packages through its Pi compatibility loader, so you do not need to install Pi separately. Shortcut settings go in `pi-side-chat.json` in OMP's agent directory (`~/.omp/agent/pi-side-chat.json` by default).
+
+Thinking follows the host's semantics. Pi receives its thinking level unchanged, including `off`. On OMP, `off` sets OMP's separate reasoning-disable flag instead of sending `"off"` as an effort level. OMP then applies its own per-model rules, such as those for models that always reason.
+
 ## How It Works
 
 The extension clones the current session context, creates a separate agent instance with all extension-registered tools, and renders it in a TUI overlay. Compact and fullscreen modes resize that same component and agent in place. Closing saves the conversation in memory so reopening restores it.
