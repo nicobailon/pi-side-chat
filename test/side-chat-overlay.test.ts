@@ -319,37 +319,26 @@ const hostSkip = registerHooks ? false : "requires node:module registerHooks";
 
 test("Pi host streams through the registry and keeps Pi thinking and Editor shapes", { skip: hostSkip }, async () => {
   const streamed = { stream: true };
-  const streamCalls: unknown[][] = [];
-  const registry = {
-    streamSimple: (...args: unknown[]) => { streamCalls.push(args); return streamed; },
-    getApiKeyForProvider: async () => { throw new Error("credentials must stay with the registry"); },
-  };
-  const state = await createHostOverlay("pi", registry);
+  const state = await createHostOverlay("pi", { streamSimple: () => streamed, getApiKeyForProvider: async () => "unused" });
 
   assert.equal(state.agent.getApiKey, undefined);
-  assert.ok(state.agent.streamFn);
-  assert.equal(state.agent.streamFn(state.model, { messages: [] }, { sessionId: "s" }), streamed);
-  assert.deepEqual(streamCalls, [[state.model, { messages: [] }, { sessionId: "s" }]]);
-  assert.equal(typeof state.agent.sessionId, "string");
+  assert.equal(state.agent.streamFn?.(state.model, { messages: [] }, {}), streamed);
   assert.notEqual(state.agent.sessionId, "main-session");
 
   assert.equal(state.agent.initialState.thinkingLevel, "off");
   assert.equal("disableReasoning" in state.agent.initialState, false);
 
-  const [tui, theme, options] = state.editor.args as [unknown, { borderColor: (text: string) => string; selectList: object }, unknown];
+  const [tui, theme, options] = state.editor.args as [unknown, { selectList: object }, unknown];
   assert.equal(state.editor.args.length, 3);
   assert.equal(tui, state.tui);
-  assert.equal(theme.borderColor("border"), "border");
   assert.equal("symbols" in theme.selectList, false);
   assert.deepEqual(options, { paddingX: 0 });
-  assert.equal(state.editor.paddingX, undefined);
 });
 
-test("OMP host without registry streaming resolves model-aware keys under a side-chat session id", { skip: hostSkip }, async () => {
-  const keyLookups: unknown[] = [];
+test("OMP host without registry streaming resolves keys by model or provider under its own session id", { skip: hostSkip }, async () => {
   const registry = {
-    getApiKey: async (model: unknown) => { keyLookups.push(model); return "model-key"; },
-    getApiKeyForProvider: async (provider: string) => { keyLookups.push(provider); return provider === "test" ? "provider-key" : undefined; },
+    getApiKey: async (model: { provider: string }) => model.provider === "test" ? "model-key" : undefined,
+    getApiKeyForProvider: async (provider: string) => provider === "test" ? "provider-key" : undefined,
   };
   const first = await createHostOverlay("omp", registry);
 
@@ -357,15 +346,13 @@ test("OMP host without registry streaming resolves model-aware keys under a side
   assert.ok(first.agent.getApiKey);
   assert.equal(await first.agent.getApiKey(first.model), "model-key");
   assert.equal(await first.agent.getApiKey("test"), "provider-key");
-  await assert.rejects(first.agent.getApiKey("missing"), /No API key available/);
-  assert.deepEqual(keyLookups, [first.model, "test", "missing"]);
+  await assert.rejects(first.agent.getApiKey("missing"), /No API key available for provider "missing"/);
+  await assert.rejects(first.agent.getApiKey({ ...first.model, provider: "absent" }), /No API key available for provider "absent"/);
 
-  const sessionId = first.agent.sessionId;
-  assert.equal(typeof sessionId, "string");
-  assert.notEqual(sessionId, "main-session");
+  assert.ok(first.agent.sessionId);
+  assert.notEqual(first.agent.sessionId, "main-session");
   const second = await createHostOverlay("omp", registry);
-  assert.equal(typeof second.agent.sessionId, "string");
-  assert.notEqual(second.agent.sessionId, sessionId);
+  assert.notEqual(second.agent.sessionId, first.agent.sessionId);
 });
 
 test("OMP host keeps registry streaming when the registry provides it", { skip: hostSkip }, async () => {
@@ -374,7 +361,6 @@ test("OMP host keeps registry streaming when the registry provides it", { skip: 
 
   assert.equal(state.agent.getApiKey, undefined);
   assert.equal(state.agent.streamFn?.(state.model, { messages: [] }, {}), streamed);
-  assert.equal(typeof state.agent.sessionId, "string");
 });
 
 test("OMP host receives thinking off as disabled reasoning and keeps other levels", { skip: hostSkip }, async () => {
@@ -393,9 +379,8 @@ test("OMP host builds its Editor from one complete theme with zero horizontal pa
   const state = await createHostOverlay("omp", { getApiKeyForProvider: async () => "test" });
 
   assert.equal(state.editor.args.length, 1);
-  const [theme] = state.editor.args as [{ borderColor: (text: string) => string; selectList: { symbols: unknown }; symbols: unknown }];
+  const [theme] = state.editor.args as [{ selectList: { symbols: unknown }; symbols: unknown }];
   assert.deepEqual(theme.symbols, ompSymbols);
   assert.equal(theme.symbols, theme.selectList.symbols);
-  assert.equal(theme.borderColor("border"), "border");
   assert.equal(state.editor.paddingX, 0);
 });

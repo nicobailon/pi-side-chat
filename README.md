@@ -99,15 +99,13 @@ The extension reads only this agent-directory file. If you previously used a `co
 
 ## Oh My Pi (OMP)
 
-Side chat also runs under Oh My Pi (OMP). [@devgony](https://github.com/devgony) contributed OMP support in PR #13 and tested it with OMP 18.1.11. To use a source checkout:
+Side chat also runs under Oh My Pi (OMP), contributed by [@devgony](https://github.com/devgony) in PR #13 and tested with OMP 18.1.11. Link a source checkout, then restart OMP and run `/side`:
 
 ```bash
 omp plugin link /path/to/pi-side-chat
 ```
 
-Restart OMP and run `/side`. OMP provides the host packages through its Pi compatibility loader, so you do not need to install Pi separately. Shortcut settings go in `pi-side-chat.json` in OMP's agent directory (`~/.omp/agent/pi-side-chat.json` by default).
-
-Thinking follows the host's semantics. Pi receives its thinking level unchanged, including `off`. On OMP, `off` sets OMP's separate reasoning-disable flag instead of sending `"off"` as an effort level. OMP then applies its own per-model rules, such as those for models that always reason.
+OMP supplies the Pi host packages, so Pi need not be installed. Shortcut settings go in `~/.omp/agent/pi-side-chat.json` by default. Thinking level `off` disables reasoning through OMP's own flag instead of being sent as an effort level, and OMP's per-model reasoning rules still apply.
 
 ## How It Works
 

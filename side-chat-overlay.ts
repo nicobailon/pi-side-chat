@@ -59,9 +59,10 @@ Be concise - this is for quick questions. If user wants something main is doing,
 
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
-// OMP's registry has no streamSimple; its Agent resolves keys through a model-aware getApiKey.
+// Key lookup for registries without streamSimple (such as OMP's): the Agent then streams
+// itself and asks for keys by model or by provider name.
 interface ApiKeyRegistry {
-  getApiKey?(model: Model<any>): Promise<string | undefined>;
+  getApiKey(model: Model<any>): Promise<string | undefined>;
   getApiKeyForProvider(provider: string): Promise<string | undefined>;
 }
 
@@ -105,7 +106,7 @@ export class SideChatOverlay implements Component, Focusable {
     const thinkingOff = forkContext.thinkingLevel === "off";
     const registry = modelRegistry as ModelRegistry & ApiKeyRegistry;
 
-    // Pi's options type requires streamFn; OMP's Agent streams itself when the registry cannot.
+    // Pi's options type requires streamFn; Agents that stream themselves accept getApiKey instead.
     this.agent = new Agent({
       initialState: {
         systemPrompt: forkContext.systemPrompt + SIDE_CHAT_PROMPT,
@@ -122,10 +123,11 @@ export class SideChatOverlay implements Component, Focusable {
         ? { streamFn: (model, context, streamOptions) => registry.streamSimple(model, context, streamOptions) }
         : {
           getApiKey: async (target: string | Model<any>) => {
+            const provider = typeof target === "string" ? target : target.provider;
             const key = typeof target === "string"
               ? await registry.getApiKeyForProvider(target)
-              : await registry.getApiKey?.(target);
-            if (!key) throw new Error("No API key available");
+              : await registry.getApiKey(target);
+            if (!key) throw new Error(`No API key available for provider "${provider}"`);
             return key;
           },
         }),

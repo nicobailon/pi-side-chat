@@ -35,7 +35,6 @@ function getExtensionAgentTools(): AgentTool[] {
 const DEFAULT_SHORTCUT = "alt+/";
 const DEFAULT_FULLSCREEN_SHORTCUT = "alt+shift+m";
 const OVERLAY_BLOCKED_ERROR = "PI_SIDE_CHAT_OVERLAY_BLOCKED";
-const FOCUS_UNSUPPORTED_MESSAGE = "Cannot open side chat: this host does not support overlay focus switching";
 
 type OverlayFocus = Pick<OverlayHandle, "focus" | "unfocus" | "isFocused">;
 // OMP exposes the focused component on the TUI instead of focus methods on the overlay handle.
@@ -52,10 +51,12 @@ function getOverlayFocus(
   tui: FocusTUI,
   overlay: SideChatOverlay,
   parent: Component | null,
-): OverlayFocus | null {
+): OverlayFocus {
   // Pi: keep using the host's overlay handle unchanged.
   if (hasHandleFocus(handle)) return handle;
-  if (typeof tui.getFocused !== "function" || typeof tui.setFocus !== "function") return null;
+  if (typeof tui.getFocused !== "function") {
+    throw new Error("Side chat needs overlay handle focus methods or tui.getFocused()");
+  }
 
   // OMP only lets focus leave a visible overlay for targets the overlay claims.
   // Claim the component that was focused before the side chat opened so it can
@@ -155,7 +156,7 @@ export default function sideChatExtension(pi: ExtensionAPI) {
 
           overlayTui = tui;
           // Capture before the overlay exists so OMP can hand focus back to it.
-          parentFocus = typeof overlayTui.getFocused === "function" ? overlayTui.getFocused() : null;
+          parentFocus = overlayTui.getFocused?.() ?? null;
           activeOverlay = new SideChatOverlay({
             tui,
             theme,
@@ -184,19 +185,9 @@ export default function sideChatExtension(pi: ExtensionAPI) {
           overlay: true,
           overlayOptions,
           onHandle: (handle) => {
-            const overlay = activeOverlay;
-            if (!overlay || !overlayTui) return;
-            const focus = getOverlayFocus(handle, overlayTui, overlay, parentFocus);
-            if (!focus) {
-              ctx.ui.notify(FOCUS_UNSUPPORTED_MESSAGE, "error");
-              // A side chat that never became usable must not replace the restorable one.
-              const previousMessages = lastMessages;
-              overlay.dispose();
-              lastMessages = previousMessages;
-              return;
-            }
-            overlayFocus = focus;
-            focus.focus();
+            if (!activeOverlay || !overlayTui) return;
+            overlayFocus = getOverlayFocus(handle, overlayTui, activeOverlay, parentFocus);
+            overlayFocus.focus();
           },
         },
       );
