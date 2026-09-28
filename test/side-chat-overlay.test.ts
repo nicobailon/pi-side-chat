@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import nodeModule from "node:module";
 import test from "node:test";
 import type { AgentTool } from "@mariozechner/pi-agent-core";
 import { SideChatOverlay, type ForkContext } from "../side-chat-overlay.ts";
@@ -11,7 +12,10 @@ const extensionTool: AgentTool = {
   execute: async () => ({ content: [{ type: "text", text: "ok" }], details: {} }),
 };
 
-function createOverlay(modelRegistry: object = { getApiKeyForProvider: async () => "test" }) {
+function createOverlay(
+  modelRegistry: object = { getApiKeyForProvider: async () => "test" },
+  { Overlay = SideChatOverlay, thinkingLevel = "off" }: { Overlay?: typeof SideChatOverlay; thinkingLevel?: ForkContext["thinkingLevel"] } = {},
+) {
   let renderRequests = 0;
   let overlapWarnings = 0;
   const tui = {
@@ -36,11 +40,11 @@ function createOverlay(modelRegistry: object = { getApiKeyForProvider: async () 
       maxTokens: 100,
     },
     systemPrompt: "test",
-    thinkingLevel: "off",
+    thinkingLevel,
     cwd: "/tmp",
     extensionTools: [extensionTool],
   };
-  const overlay = new SideChatOverlay({
+  const overlay = new Overlay({
     tui,
     theme,
     forkContext,
@@ -67,6 +71,8 @@ function createOverlay(modelRegistry: object = { getApiKeyForProvider: async () 
 
   return {
     overlay,
+    tui,
+    model: forkContext.model,
     get renderRequests() { return renderRequests; },
     get overlapWarnings() { return overlapWarnings; },
   };
@@ -213,4 +219,183 @@ test("side chat turns and tool round trips stream through the model registry wit
   assert.ok(second.calls[0]?.sessionId);
   assert.notEqual(second.calls[0]?.sessionId, sessionId);
   assert.notEqual(second.calls[0]?.sessionId, "main-session");
+});
+
+// Host doubles stand in for the Agent and Editor that Pi or Oh My Pi (OMP) provides.
+// Only the overlay module loaded with a ?host= query sees them; the rest of the suite uses real Pi packages.
+type HostName = "pi" | "omp";
+
+interface HostAgentOptions {
+  initialState: Record<string, unknown>;
+  streamFn?: (...args: unknown[]) => unknown;
+  getApiKey?: (target: unknown) => Promise<string>;
+  sessionId?: string;
+}
+
+interface HostEditor {
+  args: unknown[];
+  paddingX?: number;
+}
+
+interface HostRecords {
+  agents: HostAgentOptions[];
+  editors: HostEditor[];
+}
+
+const hostRecords: HostRecords = { agents: [], editors: [] };
+(globalThis as Record<symbol, unknown>)[Symbol.for("pi-side-chat.test.host")] = hostRecords;
+
+const registerHooks = (nodeModule as unknown as { registerHooks?: (hooks: {
+  resolve(specifier: string, context: { parentURL?: string }, next: (specifier: string, context: unknown) => unknown): unknown;
+}) => unknown }).registerHooks;
+
+const ompSymbols = { cursor: ">" };
+
+function hostModule(source: string): string {
+  return `data:text/javascript,${encodeURIComponent(source)}`;
+}
+
+function hostModules(host: HostName): Record<string, string> {
+  const records = `globalThis[Symbol.for("pi-side-chat.test.host")]`;
+  return {
+    "@mariozechner/pi-agent-core": hostModule(`
+      export * from ${JSON.stringify(import.meta.resolve("@mariozechner/pi-agent-core"))};
+      export class Agent {
+        constructor(options) { ${records}.agents.push(options); }
+        subscribe() { return () => {}; }
+        ${host === "omp" ? "setDisableReasoning() {}" : ""}
+      }
+    `),
+    "@mariozechner/pi-tui": hostModule(`
+      export * from ${JSON.stringify(import.meta.resolve("@mariozechner/pi-tui"))};
+      export class Editor {
+        focused = false;
+        constructor(...args) { this.args = args; ${records}.editors.push(this); }
+        setPaddingX(paddingX) { this.paddingX = paddingX; }
+      }
+    `),
+    ...(host === "omp" ? {
+      "@mariozechner/pi-coding-agent": hostModule(`
+        export * from ${JSON.stringify(import.meta.resolve("@mariozechner/pi-coding-agent"))};
+        const plain = (text) => text;
+        export function getSelectListTheme() {
+          return { selectedPrefix: plain, selectedText: plain, description: plain, scrollInfo: plain, noMatch: plain, symbols: ${JSON.stringify(ompSymbols)} };
+        }
+      `),
+    } : {}),
+  };
+}
+
+registerHooks?.({
+  resolve(specifier, context, next) {
+    const host = context.parentURL?.match(/[?&]host=(pi|omp)$/)?.[1] as HostName | undefined;
+    const url = host ? hostModules(host)[specifier] : undefined;
+    return url ? { url, shortCircuit: true } : next(specifier, context);
+  },
+});
+
+const hostOverlays = new Map<HostName, Promise<typeof SideChatOverlay>>();
+
+function loadHostOverlay(host: HostName): Promise<typeof SideChatOverlay> {
+  let overlay = hostOverlays.get(host);
+  if (!overlay) {
+    overlay = import(new URL(`../side-chat-overlay.ts?host=${host}`, import.meta.url).href)
+      .then((mod: { SideChatOverlay: typeof SideChatOverlay }) => mod.SideChatOverlay);
+    hostOverlays.set(host, overlay);
+  }
+  return overlay;
+}
+
+async function createHostOverlay(host: HostName, modelRegistry: object, thinkingLevel: ForkContext["thinkingLevel"] = "off") {
+  hostRecords.agents.length = 0;
+  hostRecords.editors.length = 0;
+  const state = createOverlay(modelRegistry, { Overlay: await loadHostOverlay(host), thinkingLevel });
+  assert.equal(hostRecords.agents.length, 1);
+  assert.equal(hostRecords.editors.length, 1);
+  return { ...state, agent: hostRecords.agents[0]!, editor: hostRecords.editors[0]! };
+}
+
+const hostSkip = registerHooks ? false : "requires node:module registerHooks";
+
+test("Pi host streams through the registry and keeps Pi thinking and Editor shapes", { skip: hostSkip }, async () => {
+  const streamed = { stream: true };
+  const streamCalls: unknown[][] = [];
+  const registry = {
+    streamSimple: (...args: unknown[]) => { streamCalls.push(args); return streamed; },
+    getApiKeyForProvider: async () => { throw new Error("credentials must stay with the registry"); },
+  };
+  const state = await createHostOverlay("pi", registry);
+
+  assert.equal(state.agent.getApiKey, undefined);
+  assert.ok(state.agent.streamFn);
+  assert.equal(state.agent.streamFn(state.model, { messages: [] }, { sessionId: "s" }), streamed);
+  assert.deepEqual(streamCalls, [[state.model, { messages: [] }, { sessionId: "s" }]]);
+  assert.equal(typeof state.agent.sessionId, "string");
+  assert.notEqual(state.agent.sessionId, "main-session");
+
+  assert.equal(state.agent.initialState.thinkingLevel, "off");
+  assert.equal("disableReasoning" in state.agent.initialState, false);
+
+  const [tui, theme, options] = state.editor.args as [unknown, { borderColor: (text: string) => string; selectList: object }, unknown];
+  assert.equal(state.editor.args.length, 3);
+  assert.equal(tui, state.tui);
+  assert.equal(theme.borderColor("border"), "border");
+  assert.equal("symbols" in theme.selectList, false);
+  assert.deepEqual(options, { paddingX: 0 });
+  assert.equal(state.editor.paddingX, undefined);
+});
+
+test("OMP host without registry streaming resolves model-aware keys under a side-chat session id", { skip: hostSkip }, async () => {
+  const keyLookups: unknown[] = [];
+  const registry = {
+    getApiKey: async (model: unknown) => { keyLookups.push(model); return "model-key"; },
+    getApiKeyForProvider: async (provider: string) => { keyLookups.push(provider); return provider === "test" ? "provider-key" : undefined; },
+  };
+  const first = await createHostOverlay("omp", registry);
+
+  assert.equal("streamFn" in first.agent, false);
+  assert.ok(first.agent.getApiKey);
+  assert.equal(await first.agent.getApiKey(first.model), "model-key");
+  assert.equal(await first.agent.getApiKey("test"), "provider-key");
+  await assert.rejects(first.agent.getApiKey("missing"), /No API key available/);
+  assert.deepEqual(keyLookups, [first.model, "test", "missing"]);
+
+  const sessionId = first.agent.sessionId;
+  assert.equal(typeof sessionId, "string");
+  assert.notEqual(sessionId, "main-session");
+  const second = await createHostOverlay("omp", registry);
+  assert.equal(typeof second.agent.sessionId, "string");
+  assert.notEqual(second.agent.sessionId, sessionId);
+});
+
+test("OMP host keeps registry streaming when the registry provides it", { skip: hostSkip }, async () => {
+  const streamed = { stream: true };
+  const state = await createHostOverlay("omp", { streamSimple: () => streamed, getApiKeyForProvider: async () => "unused" });
+
+  assert.equal(state.agent.getApiKey, undefined);
+  assert.equal(state.agent.streamFn?.(state.model, { messages: [] }, {}), streamed);
+  assert.equal(typeof state.agent.sessionId, "string");
+});
+
+test("OMP host receives thinking off as disabled reasoning and keeps other levels", { skip: hostSkip }, async () => {
+  const registry = { getApiKeyForProvider: async () => "test" };
+
+  const off = await createHostOverlay("omp", registry, "off");
+  assert.equal(off.agent.initialState.thinkingLevel, undefined);
+  assert.equal(off.agent.initialState.disableReasoning, true);
+
+  const high = await createHostOverlay("omp", registry, "high");
+  assert.equal(high.agent.initialState.thinkingLevel, "high");
+  assert.equal(high.agent.initialState.disableReasoning, false);
+});
+
+test("OMP host builds its Editor from one complete theme with zero horizontal padding", { skip: hostSkip }, async () => {
+  const state = await createHostOverlay("omp", { getApiKeyForProvider: async () => "test" });
+
+  assert.equal(state.editor.args.length, 1);
+  const [theme] = state.editor.args as [{ borderColor: (text: string) => string; selectList: { symbols: unknown }; symbols: unknown }];
+  assert.deepEqual(theme.symbols, ompSymbols);
+  assert.equal(theme.symbols, theme.selectList.symbols);
+  assert.equal(theme.borderColor("border"), "border");
+  assert.equal(state.editor.paddingX, 0);
 });
